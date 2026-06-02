@@ -3,9 +3,10 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
 import { supabase, type Question } from '@/lib/supabase'
 
-const P = '#009194'
+const P  = '#009194'
 const PD = '#007072'
 const GRAD = `linear-gradient(135deg, ${P}, ${PD})`
+const MAX = 300
 
 function getToken(): string {
   if (typeof window === 'undefined') return ''
@@ -44,7 +45,7 @@ export default function QuestionsPage() {
   }, [fetchAll])
 
   async function submit() {
-    if (!text.trim()) return
+    if (!text.trim() || text.length > MAX) return
     setSubmitting(true)
     setError(null)
     const { error: err } = await supabase.from('questions').insert({ text: text.trim() })
@@ -75,7 +76,8 @@ export default function QuestionsPage() {
     setLikingId(null)
   }
 
-  const canSubmit = !submitting && text.trim().length > 0
+  const canSubmit = !submitting && text.trim().length > 0 && text.length <= MAX
+  const remaining = MAX - text.length
 
   return (
     <div style={{ minHeight: '100vh', background: '#f0f4f4' }}>
@@ -88,14 +90,25 @@ export default function QuestionsPage() {
         {/* Submit card */}
         <div style={{ background: '#fff', borderRadius: 20, padding: '1.25rem', boxShadow: '0 8px 32px rgba(0,0,0,.1)', marginBottom: '1.25rem' }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 10 }}>✏️  Шинэ асуулт</p>
-          <textarea
-            value={text}
-            onChange={e => setText(e.target.value)}
-            placeholder="Асуултаа энд бичнэ үү..."
-            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
-            rows={3}
-            style={{ marginBottom: 10 }}
-          />
+          <div style={{ position: 'relative' }}>
+            <textarea
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder="Асуултаа энд бичнэ үү..."
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
+              rows={3}
+              maxLength={MAX}
+              style={{ marginBottom: 4, borderColor: text.length > MAX * 0.9 ? (text.length >= MAX ? '#dc2626' : '#f59e0b') : undefined }}
+            />
+            <span style={{
+              position: 'absolute', bottom: 10, right: 12,
+              fontSize: 11, fontWeight: 500,
+              color: text.length >= MAX ? '#dc2626' : text.length > MAX * 0.9 ? '#f59e0b' : '#cbd5e1',
+            }}>
+              {remaining}
+            </span>
+          </div>
+
           {error && (
             <div style={{ marginBottom: 10, padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, fontSize: 13, color: '#dc2626' }}>
               ⚠️ {error}
@@ -106,6 +119,7 @@ export default function QuestionsPage() {
               ✓ Асуулт амжилттай илгээгдлээ!
             </div>
           )}
+
           <button
             onClick={submit}
             disabled={!canSubmit}
@@ -128,7 +142,7 @@ export default function QuestionsPage() {
             { n: questions.reduce((s, q) => s + q.likes, 0), label: 'Нийт санал', color: PD },
             { n: questions.filter(q => q.likes > 0).length, label: 'Санал авсан', color: '#7c3aed' },
           ].map(s => (
-            <div key={s.label} style={{ flex: 1, background: '#fff', borderRadius: 12, padding: '10px 8px', textAlign: 'center', border: '1px solid #e2e8f0', boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
+            <div key={s.label} style={{ flex: 1, background: '#fff', borderRadius: 12, padding: '10px 8px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.n}</div>
               <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{s.label}</div>
             </div>
@@ -157,8 +171,7 @@ export default function QuestionsPage() {
                   onClick={() => toggleLike(q.id)}
                   disabled={likingId === q.id}
                   style={{
-                    flexShrink: 0,
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                    flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                     padding: '8px 12px', borderRadius: 12,
                     background: liked ? '#e6f6f6' : '#f8fafc',
                     color: liked ? P : '#94a3b8',

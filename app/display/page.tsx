@@ -10,54 +10,51 @@ const GRAD = `linear-gradient(135deg, ${P}, ${PD})`
 const MEDALS      = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣']
 const PROG_COLORS = ['#eab308', '#64748b', '#f97316', P, P]
 
-const EVENT_TITLE = process.env.NEXT_PUBLIC_EVENT_TITLE || 'Арга хэмжээ'
-const EVENT_DATE  = process.env.NEXT_PUBLIC_EVENT_DATE  || ''
-
-function getToken(): string {
-  if (typeof window === 'undefined') return ''
-  let t = localStorage.getItem('qa_token')
-  if (!t) { t = crypto.randomUUID(); localStorage.setItem('qa_token', t) }
-  return t
+async function downloadImage(url: string) {
+  try {
+    const res = await fetch(url)
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'hotolbor.jpg'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(a.href)
+  } catch {
+    window.open(url, '_blank')
+  }
 }
 
 export default function DisplayPage() {
   const [questions, setQuestions] = useState<Question[]>([])
-  const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
-  const [likingId, setLikingId] = useState<string | null>(null)
   const [origin, setOrigin] = useState('')
   const [programImage, setProgramImage] = useState(process.env.NEXT_PUBLIC_PROGRAM_IMAGE_URL || '')
+  const [eventTitle, setEventTitle] = useState(process.env.NEXT_PUBLIC_EVENT_TITLE || 'Арга хэмжээ')
+  const [eventDate,  setEventDate]  = useState(process.env.NEXT_PUBLIC_EVENT_DATE  || '')
 
   const fetchQuestions = useCallback(async () => {
-    const token = getToken()
-    const [{ data: qs }, { data: ls }] = await Promise.all([
-      supabase.from('questions').select('*').order('likes', { ascending: false }).order('created_at', { ascending: true }),
-      supabase.from('question_likes').select('question_id').eq('user_token', token),
-    ])
-    setQuestions(qs || [])
-    setLikedIds(new Set((ls || []).map((l: any) => l.question_id)))
+    const { data } = await supabase
+      .from('questions')
+      .select('*')
+      .order('likes', { ascending: false })
+      .order('created_at', { ascending: true })
+    setQuestions(data || [])
   }, [])
-
-  async function toggleLike(id: string) {
-    if (likingId) return
-    setLikingId(id)
-    const token = getToken()
-    const liked = likedIds.has(id)
-    const q = questions.find(q => q.id === id)
-    if (liked) {
-      await supabase.from('question_likes').delete().eq('question_id', id).eq('user_token', token)
-      await supabase.from('questions').update({ likes: Math.max(0, (q?.likes || 1) - 1) }).eq('id', id)
-    } else {
-      await supabase.from('question_likes').insert({ question_id: id, user_token: token })
-      await supabase.from('questions').update({ likes: (q?.likes || 0) + 1 }).eq('id', id)
-    }
-    await fetchQuestions()
-    setLikingId(null)
-  }
 
   useEffect(() => {
     setOrigin(window.location.origin)
     fetchQuestions()
-    getSetting('program_image_url').then(url => { if (url) setProgramImage(url) })
+
+    Promise.all([
+      getSetting('program_image_url'),
+      getSetting('event_title'),
+      getSetting('event_date'),
+    ]).then(([img, title, date]) => {
+      if (img)   setProgramImage(img)
+      if (title) setEventTitle(title)
+      if (date)  setEventDate(date)
+    })
 
     const ch = supabase.channel('display-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, fetchQuestions)
@@ -88,14 +85,14 @@ export default function DisplayPage() {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div>
-          <h1 style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{EVENT_TITLE}</h1>
+          <h1 style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{eventTitle}</h1>
           <p style={{ fontSize: 12, opacity: .75, marginTop: 1 }}>
             Хөтөлбөр харах · QR уншуулж асуулт оруулах · Like дарж TOP 5 сонгох
           </p>
         </div>
-        {EVENT_DATE && (
+        {eventDate && (
           <div style={{ fontSize: 13, fontWeight: 700, background: 'rgba(255,255,255,.18)', borderRadius: 8, padding: '5px 14px', whiteSpace: 'nowrap' }}>
-            {EVENT_DATE}
+            {eventDate}
           </div>
         )}
       </header>
@@ -108,21 +105,31 @@ export default function DisplayPage() {
           <div className="card-header">
             <span>📋</span>
             <span className="card-title">1. Хөтөлбөр</span>
-            <span className="badge badge-teal">Сургалтын зураг</span>
+            {programImage && (
+              <button
+                onClick={() => downloadImage(programImage)}
+                style={{
+                  marginLeft: 'auto', padding: '4px 12px', borderRadius: 8,
+                  background: '#e6f6f6', color: P, border: `1px solid #a8d5d6`,
+                  fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                ⬇️ Татах
+              </button>
+            )}
           </div>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative', minHeight: 300 }}>
             {programImage ? (
               <img
                 src={programImage}
                 alt="Хөтөлбөр"
-                style={{ maxWidth: '100%', maxHeight: 480, objectFit: 'contain', borderRadius: 8 }}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', background: '#fff' }}
               />
             ) : (
-              <div style={{ textAlign: 'center', color: '#cbd5e1' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#cbd5e1', padding: '2rem' }}>
                 <div style={{ fontSize: 52, marginBottom: 12 }}>🖼️</div>
-                <p style={{ fontSize: 13, lineHeight: 1.7 }}>
-                  Admin хуудаснаас<br />
-                  хөтөлбөрийн зургийн URL<br />
+                <p style={{ fontSize: 13, lineHeight: 1.7, textAlign: 'center' }}>
+                  Admin хуудаснаас<br />хөтөлбөрийн зургийн URL<br />
                   <span style={{ color: '#94a3b8', fontSize: 12 }}>оруулна уу</span>
                 </p>
               </div>
@@ -135,11 +142,10 @@ export default function DisplayPage() {
           <div className="card-header">
             <span>📱</span>
             <span className="card-title">2. QR уншуулж асуулт оруулах</span>
-            <span className="badge badge-green">Mobile friendly</span>
+            <span className="badge badge-green">Mobile</span>
           </div>
 
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '1.5rem', gap: 20 }}>
-            {/* Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%' }}>
               {[
                 { n: questions.length, label: 'Нийт асуулт', color: P },
@@ -152,7 +158,6 @@ export default function DisplayPage() {
               ))}
             </div>
 
-            {/* QR */}
             {origin && (
               <div style={{ background: GRAD, borderRadius: 20, padding: 18, boxShadow: '0 8px 32px rgba(0,145,148,.3)' }}>
                 <QRCodeSVG value={qrUrl} size={170} bgColor="transparent" fgColor="#fff" level="M" />
@@ -161,20 +166,17 @@ export default function DisplayPage() {
 
             <div style={{ textAlign: 'center' }}>
               <p style={{ fontSize: 18, fontWeight: 800, color: '#1e293b', marginBottom: 4 }}>Асуултаа эндээс оруулна</p>
-              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
-                Оролцогч QR уншуулж нэр, алба,<br />асуулта бичнэ
-              </p>
+              <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>QR уншуулж нэр, алба, асуулта бичнэ</p>
             </div>
 
             <div style={{ background: '#f8fafc', borderRadius: 10, padding: '8px 14px', border: '1px solid #e2e8f0', width: '100%' }}>
               <p style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace', textAlign: 'center', wordBreak: 'break-all' }}>{qrUrl}</p>
             </div>
 
-            {/* Steps */}
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[
                 ['1', 'QR уншуулна', 'Утасны нэр тэмдэглэгч аппаар шууд нэвтэрнэ'],
-                ['2', 'Асуулт илгээнэ', 'Нэр/алба болон асуулт бөглөөд илгээнэ'],
+                ['2', 'Асуулт илгээнэ', 'Асуулт бөглөөд илгээнэ'],
                 ['3', 'Like дарж оноо өгнэ', 'Хамгийн өндөр оноотой 5 асуулт автоматаар ялгарна'],
               ].map(([n, title, desc]) => (
                 <div key={n} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -197,7 +199,6 @@ export default function DisplayPage() {
             <span className="badge badge-teal">TOP 5</span>
           </div>
 
-          {/* Top stats */}
           <div style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: 8 }}>
             {[
               { n: questions.length, label: 'Нийт асуулт', color: P },
@@ -235,23 +236,10 @@ export default function DisplayPage() {
                     <span style={{ fontSize: 20 }}>{MEDALS[i]}</span>
                   </div>
                   <p style={{ flex: 1, fontSize: 13, fontWeight: i<3?600:400, lineHeight: 1.55, color: '#1e293b' }}>{q.text}</p>
-                  <button
-                    onClick={() => toggleLike(q.id)}
-                    disabled={likingId === q.id}
-                    style={{
-                      flexShrink: 0, textAlign: 'center', minWidth: 60,
-                      background: likedIds.has(q.id) ? '#e6f6f6' : '#fff',
-                      borderRadius: 10, padding: '8px 12px',
-                      border: `1.5px solid ${likedIds.has(q.id) ? '#a8d5d6' : i===0?'#fde047':i===1?'#cbd5e1':i===2?'#fdba74':'#e2e8f0'}`,
-                      cursor: likingId === q.id ? 'wait' : 'pointer',
-                      boxShadow: likedIds.has(q.id) ? '0 2px 8px rgba(0,145,148,.2)' : 'none',
-                      transition: 'all .15s',
-                    }}
-                  >
-                    <div style={{ fontSize: 20 }}>{likedIds.has(q.id) ? '♥' : '♡'}</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: likedIds.has(q.id) ? P : '#64748b' }}>{q.likes}</div>
-                    <div style={{ fontSize: 10, color: '#94a3b8' }}>санал өгөх</div>
-                  </button>
+                  <div style={{ flexShrink: 0, textAlign: 'center', minWidth: 52, background: '#fff', borderRadius: 8, padding: '6px 10px', border: `1px solid ${i===0?'#fde047':i===1?'#cbd5e1':i===2?'#fdba74':'#e2e8f0'}` }}>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: P }}>{q.likes}</div>
+                    <div style={{ fontSize: 10, color: '#94a3b8' }}>санал</div>
+                  </div>
                 </div>
                 <div style={{ height: 5, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${maxLikes>0?Math.round((q.likes/maxLikes)*100):0}%`, background: PROG_COLORS[i], borderRadius: 4, transition: 'width .6s ease' }} />
@@ -273,15 +261,13 @@ export default function DisplayPage() {
             )}
           </div>
 
-          {/* Footer note */}
           <div style={{ padding: '10px 14px', borderTop: '1px solid #f1f5f9', background: '#f8fafc', borderRadius: '0 0 16px 16px' }}>
             <p style={{ fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
-              💡 <strong>Оноо өгөх газар:</strong> Асуулт бүрийн баруун талд байгаа <strong>санал өгөх</strong> товч дарж оноо өгнэ. TOP 5 жагсаалт автоматаар эрэмбэлэгдэнэ.
+              💡 <strong>Санал өгөх газар:</strong> QR уншуулж гар утасны <strong>/questions</strong> хуудаснаас санал өгнө үү
             </p>
           </div>
         </div>
       </div>
-
     </div>
   )
 }
