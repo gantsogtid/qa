@@ -13,19 +13,46 @@ const PROG_COLORS = ['#eab308', '#64748b', '#f97316', P, P]
 const EVENT_TITLE = process.env.NEXT_PUBLIC_EVENT_TITLE || 'Арга хэмжээ'
 const EVENT_DATE  = process.env.NEXT_PUBLIC_EVENT_DATE  || ''
 
+function getToken(): string {
+  if (typeof window === 'undefined') return ''
+  let t = localStorage.getItem('qa_token')
+  if (!t) { t = crypto.randomUUID(); localStorage.setItem('qa_token', t) }
+  return t
+}
+
 export default function DisplayPage() {
   const [questions, setQuestions] = useState<Question[]>([])
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
+  const [likingId, setLikingId] = useState<string | null>(null)
   const [origin, setOrigin] = useState('')
   const [programImage, setProgramImage] = useState(process.env.NEXT_PUBLIC_PROGRAM_IMAGE_URL || '')
 
   const fetchQuestions = useCallback(async () => {
-    const { data } = await supabase
-      .from('questions')
-      .select('*')
-      .order('likes', { ascending: false })
-      .order('created_at', { ascending: true })
-    setQuestions(data || [])
+    const token = getToken()
+    const [{ data: qs }, { data: ls }] = await Promise.all([
+      supabase.from('questions').select('*').order('likes', { ascending: false }).order('created_at', { ascending: true }),
+      supabase.from('question_likes').select('question_id').eq('user_token', token),
+    ])
+    setQuestions(qs || [])
+    setLikedIds(new Set((ls || []).map((l: any) => l.question_id)))
   }, [])
+
+  async function toggleLike(id: string) {
+    if (likingId) return
+    setLikingId(id)
+    const token = getToken()
+    const liked = likedIds.has(id)
+    const q = questions.find(q => q.id === id)
+    if (liked) {
+      await supabase.from('question_likes').delete().eq('question_id', id).eq('user_token', token)
+      await supabase.from('questions').update({ likes: Math.max(0, (q?.likes || 1) - 1) }).eq('id', id)
+    } else {
+      await supabase.from('question_likes').insert({ question_id: id, user_token: token })
+      await supabase.from('questions').update({ likes: (q?.likes || 0) + 1 }).eq('id', id)
+    }
+    await fetchQuestions()
+    setLikingId(null)
+  }
 
   useEffect(() => {
     setOrigin(window.location.origin)
@@ -208,10 +235,23 @@ export default function DisplayPage() {
                     <span style={{ fontSize: 20 }}>{MEDALS[i]}</span>
                   </div>
                   <p style={{ flex: 1, fontSize: 13, fontWeight: i<3?600:400, lineHeight: 1.55, color: '#1e293b' }}>{q.text}</p>
-                  <div style={{ flexShrink: 0, textAlign: 'center', minWidth: 52, background: '#fff', borderRadius: 8, padding: '6px 10px', border: `1px solid ${i===0?'#fde047':i===1?'#cbd5e1':i===2?'#fdba74':'#e2e8f0'}` }}>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: P }}>{q.likes}</div>
+                  <button
+                    onClick={() => toggleLike(q.id)}
+                    disabled={likingId === q.id}
+                    style={{
+                      flexShrink: 0, textAlign: 'center', minWidth: 60,
+                      background: likedIds.has(q.id) ? '#e6f6f6' : '#fff',
+                      borderRadius: 10, padding: '8px 12px',
+                      border: `1.5px solid ${likedIds.has(q.id) ? '#a8d5d6' : i===0?'#fde047':i===1?'#cbd5e1':i===2?'#fdba74':'#e2e8f0'}`,
+                      cursor: likingId === q.id ? 'wait' : 'pointer',
+                      boxShadow: likedIds.has(q.id) ? '0 2px 8px rgba(0,145,148,.2)' : 'none',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    <div style={{ fontSize: 20 }}>{likedIds.has(q.id) ? '♥' : '♡'}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: likedIds.has(q.id) ? P : '#64748b' }}>{q.likes}</div>
                     <div style={{ fontSize: 10, color: '#94a3b8' }}>санал өгөх</div>
-                  </div>
+                  </button>
                 </div>
                 <div style={{ height: 5, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${maxLikes>0?Math.round((q.likes/maxLikes)*100):0}%`, background: PROG_COLORS[i], borderRadius: 4, transition: 'width .6s ease' }} />
