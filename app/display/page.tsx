@@ -163,9 +163,10 @@ export default function DisplayPage() {
                 <p style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', marginBottom: 2 }}>Асуултаа эндээс оруулна</p>
                 <p style={{ fontSize: 11, color: '#64748b' }}>QR уншуулж асуулт бичнэ</p>
               </div>
-              <div style={{ background: '#f8fafc', borderRadius: 8, padding: '5px 10px', border: '1px solid #e2e8f0', width: '100%' }}>
-                <p style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace', textAlign: 'center', wordBreak: 'break-all' }}>{qrUrl}</p>
-              </div>
+              <a href={qrUrl} target="_blank" rel="noopener noreferrer"
+                style={{ background: '#f8fafc', borderRadius: 8, padding: '5px 10px', border: `1px solid #a8d5d6`, width: '100%', display: 'block', textAlign: 'center', textDecoration: 'none' }}>
+                <p style={{ fontSize: 10, color: P, fontFamily: 'monospace', wordBreak: 'break-all', fontWeight: 600 }}>{qrUrl} ↗</p>
+              </a>
             </div>
 
             {/* Scrollable: Top 5 compact */}
