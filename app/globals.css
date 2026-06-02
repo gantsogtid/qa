@@ -72,14 +72,19 @@ textarea { resize: vertical; min-height: 96px; line-height: 1.5; }
   border-radius: 0 0 4px 4px;
 }
 
-/* ── Display page grid ── */
+/* ── Display page ── */
+.display-outer {
+  overflow: hidden;
+}
 .display-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
+  height: 100%;
 }
 @media (max-width: 960px) {
-  .display-grid { grid-template-columns: 1fr; }
+  .display-outer { height: auto !important; overflow: visible !important; }
+  .display-grid  { grid-template-columns: 1fr; height: auto !important; }
 }
 @media (min-width: 961px) and (max-width: 1200px) {
   .display-grid { grid-template-columns: 1fr 1fr; }
