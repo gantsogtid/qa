@@ -19,3 +19,12 @@ export type AttendanceRow = {
   checked_in: boolean
   created_at: string
 }
+
+export async function getSetting(key: string): Promise<string> {
+  const { data } = await supabase.from('settings').select('value').eq('key', key).single()
+  return data?.value || ''
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  await supabase.from('settings').update({ value }).eq('key', key)
+}
