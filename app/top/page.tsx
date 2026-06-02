@@ -1,4 +1,5 @@
 'use client'
+export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
 import { supabase, type Question } from '@/lib/supabase'
 
@@ -31,6 +32,7 @@ export default function TopPage() {
     <>
       <nav>
         <span className="brand">Q&amp;A</span>
+        <a href="/display">Дэлгэц</a>
         <a href="/questions">Асуулт</a>
         <a href="/top" className="active">Топ 5</a>
         <a href="/admin">Ирц</a>
