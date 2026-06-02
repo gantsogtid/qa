@@ -14,16 +14,13 @@ function isNew(createdAt: string) {
   return Date.now() - new Date(createdAt).getTime() < 3 * 60 * 1000
 }
 
-async function downloadImage(url: string) {
-  try {
-    const res = await fetch(url)
-    const blob = await res.blob()
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = 'hotolbor.jpg'
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    URL.revokeObjectURL(a.href)
-  } catch { window.open(url, '_blank') }
+function downloadImage(url: string) {
+  const a = document.createElement('a')
+  a.href = `/api/download?url=${encodeURIComponent(url)}`
+  a.download = 'hotolbor.jpg'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
 }
 
 export default function DisplayPage() {

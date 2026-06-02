@@ -21,7 +21,7 @@ export type AttendanceRow = {
 }
 
 export async function getSetting(key: string): Promise<string> {
-  const { data } = await supabase.from('settings').select('value').eq('key', key).single()
+  const { data } = await supabase.from('settings').select('value').eq('key', key).maybeSingle()
   return data?.value || ''
 }
 
