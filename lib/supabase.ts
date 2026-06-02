@@ -15,6 +15,12 @@ export type Question = {
 export type AttendanceRow = {
   id: string
   name: string
+  hospital: string
+  last_name: string
+  first_name: string
+  position_title: string
+  email: string
+  phone: string
   registered: boolean
   checked_in: boolean
   created_at: string
@@ -27,4 +33,23 @@ export async function getSetting(key: string): Promise<string> {
 
 export async function setSetting(key: string, value: string): Promise<void> {
   await supabase.from('settings').update({ value }).eq('key', key)
+}
+
+export function parseCSV(text: string): string[][] {
+  const rows: string[][] = []
+  for (const raw of text.split('\n')) {
+    const line = raw.replace(/\r$/, '')
+    if (!line.trim()) continue
+    const cols: string[] = []
+    let inQ = false, cur = ''
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') { inQ = !inQ }
+      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = '' }
+      else { cur += ch }
+    }
+    cols.push(cur.trim())
+    rows.push(cols)
+  }
+  return rows
 }

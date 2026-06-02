@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
-import { supabase, getSetting, setSetting, type AttendanceRow, type Question } from '@/lib/supabase'
+import { supabase, getSetting, setSetting, parseCSV, type AttendanceRow, type Question } from '@/lib/supabase'
 
 const P  = '#009194'
 const PD = '#007072'
@@ -28,6 +28,8 @@ export default function AdminPage() {
   const [dateInput, setDateInput]   = useState('')
   const [saving, setSaving]         = useState<string | null>(null)
   const [saved, setSaved]           = useState<string | null>(null)
+  const [csvImporting, setCsvImporting] = useState(false)
+  const [csvResult, setCsvResult]   = useState<string | null>(null)
 
   const fetchList = useCallback(async () => {
     const { data } = await supabase.from('attendance').select('*').order('created_at', { ascending: true })
@@ -97,6 +99,42 @@ export default function AdminPage() {
     await supabase.from('question_likes').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await supabase.from('questions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     await fetchQuestions()
+  }
+
+  async function importCSV(file: File) {
+    setCsvImporting(true)
+    setCsvResult(null)
+    const text = await file.text()
+    const rows = parseCSV(text)
+    // Толгой мөр илрүүлэх (эхний нүд нь тоо биш бол)
+    const startIdx = isNaN(Number(rows[0]?.[0])) ? 1 : 0
+    const dataRows = rows.slice(startIdx).filter(r => r.length >= 4)
+
+    const records = dataRows.map(cols => ({
+      hospital:       (cols[1] || '').trim(),
+      last_name:      (cols[2] || '').trim(),
+      first_name:     (cols[3] || '').trim(),
+      position_title: (cols[4] || '').trim(),
+      email:          (cols[5] || '').trim(),
+      phone:          (cols[6] || '').trim(),
+      name:           `${(cols[3] || '').trim()} ${(cols[2] || '').trim()}`.trim(),
+      checked_in:     false,
+    })).filter(r => r.first_name || r.last_name)
+
+    if (records.length === 0) {
+      setCsvResult('error:Мөр олдсонгүй. CSV форматаа шалгана уу.')
+      setCsvImporting(false)
+      return
+    }
+
+    const { error } = await supabase.from('attendance').insert(records)
+    if (error) {
+      setCsvResult(`error:${error.message}`)
+    } else {
+      setCsvResult(`ok:${records.length} хүний мэдээлэл амжилттай оруулсан`)
+      await fetchList()
+    }
+    setCsvImporting(false)
   }
 
   const filtered = list.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
@@ -208,6 +246,8 @@ export default function AdminPage() {
         {/* ── Ирц ── */}
         {tab === 'attendance' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+            {/* Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {[
                 { label: 'Нийт бүртгэл', value: list.length, color: P, icon: '📋' },
@@ -223,32 +263,64 @@ export default function AdminPage() {
               ))}
             </div>
 
-            <div style={{ background: '#fff', borderRadius: 16, padding: '1rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input placeholder="Нэр бичих..." value={name}
-                  onChange={e => setName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') addPerson() }}
-                  style={{ flex: 1 }}
+            {/* CSV Import */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '1rem 1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>📂 Excel → CSV оруулах</p>
+              <p style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+                Excel файлаа CSV (UTF-8) хэлбэрт хадгалаад upload хийнэ үү.<br/>
+                Баганын дараалал: A=дугаар, B=эмнэлэг, C=овог, D=нэр, E=албан тушаал, F=и-мэйл, G=утас
+              </p>
+              <label style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: 8, padding: '12px', background: csvImporting ? '#f1f5f9' : '#e6f6f6',
+                border: `1.5px dashed ${csvImporting ? '#cbd5e1' : '#a8d5d6'}`,
+                borderRadius: 10, cursor: csvImporting ? 'default' : 'pointer',
+                fontSize: 13, fontWeight: 600, color: P,
+              }}>
+                {csvImporting ? '⏳ Оруулж байна...' : '📁 CSV файл сонгох'}
+                <input type="file" accept=".csv" style={{ display: 'none' }}
+                  disabled={csvImporting}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) importCSV(f); e.target.value = '' }}
                 />
-                <button onClick={addPerson} disabled={adding || !name.trim()}
-                  style={{ padding: '0 20px', flexShrink: 0, background: adding || !name.trim() ? '#e2e8f0' : GRAD, color: adding || !name.trim() ? '#94a3b8' : '#fff', borderRadius: 12, fontSize: 14, fontWeight: 600, height: 44 }}>
-                  + Нэмэх
-                </button>
-              </div>
+              </label>
+              {csvResult && (
+                <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 8, fontSize: 13,
+                  background: csvResult.startsWith('ok') ? '#f0fdf4' : '#fef2f2',
+                  color: csvResult.startsWith('ok') ? '#16a34a' : '#dc2626',
+                  border: `1px solid ${csvResult.startsWith('ok') ? '#bbf7d0' : '#fecaca'}`,
+                }}>
+                  {csvResult.startsWith('ok') ? '✓ ' : '⚠️ '}{csvResult.split(':')[1]}
+                </div>
+              )}
             </div>
 
+            {/* Search + add */}
             <input placeholder="🔍 Хайх..." value={search} onChange={e => setSearch(e.target.value)} />
 
+            {/* List */}
             <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
               {filtered.length === 0 && <p style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: 14 }}>Олдсонгүй</p>}
               {filtered.map((p, i) => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < filtered.length - 1 ? '1px solid #f1f5f9' : 'none', background: p.checked_in ? '#f0fdf4' : '#fff' }}>
+                <div key={p.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                  borderBottom: i < filtered.length - 1 ? '1px solid #f1f5f9' : 'none',
+                  background: p.checked_in ? '#f0fdf4' : '#fff',
+                }}>
                   <span style={{ fontSize: 12, color: '#cbd5e1', minWidth: 24, fontWeight: 600 }}>{i + 1}</span>
-                  <span style={{ flex: 1, fontSize: 14, color: '#1e293b', fontWeight: p.checked_in ? 600 : 400 }}>{p.name}</span>
-                  <button onClick={() => toggleCheckin(p.id, p.checked_in)} style={{ padding: '5px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: p.checked_in ? '#dcfce7' : '#f1f5f9', color: p.checked_in ? '#16a34a' : '#64748b', border: `1px solid ${p.checked_in ? '#86efac' : '#e2e8f0'}` }}>
-                    {p.checked_in ? '✓ Ирсэн' : 'Ирээгүй'}
-                  </button>
-                  <button onClick={() => deletePerson(p.id)} style={{ padding: '5px 10px', borderRadius: 8, fontSize: 12, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>✕</button>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, color: '#1e293b', fontWeight: p.checked_in ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : p.name}
+                    </p>
+                    {p.hospital && <p style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.hospital}{p.position_title ? ` · ${p.position_title}` : ''}</p>}
+                    {p.phone && <p style={{ fontSize: 11, color: '#94a3b8' }}>{p.phone}</p>}
+                  </div>
+                  <button onClick={() => toggleCheckin(p.id, p.checked_in)} style={{
+                    flexShrink: 0, padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                    background: p.checked_in ? '#dcfce7' : '#f1f5f9',
+                    color: p.checked_in ? '#16a34a' : '#64748b',
+                    border: `1px solid ${p.checked_in ? '#86efac' : '#e2e8f0'}`,
+                  }}>{p.checked_in ? '✓ Ирсэн' : 'Ирээгүй'}</button>
+                  <button onClick={() => deletePerson(p.id)} style={{ flexShrink: 0, padding: '5px 8px', borderRadius: 8, fontSize: 12, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>✕</button>
                 </div>
               ))}
             </div>
