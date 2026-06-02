@@ -198,6 +198,19 @@ export default function DisplayPage() {
                 style={{ background: '#f8fafc', borderRadius: 8, padding: '5px 10px', border: `1px solid #a8d5d6`, width: '100%', display: 'block', textAlign: 'center', textDecoration: 'none' }}>
                 <p style={{ fontSize: 10, color: P, fontFamily: 'monospace', wordBreak: 'break-all', fontWeight: 600 }}>{qrUrl} ↗</p>
               </a>
+
+              {/* Ирц бүртгэлийн QR */}
+              {origin && (
+                <div style={{ width: '100%', background: '#f0fdf4', borderRadius: 12, padding: '10px 14px', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <QRCodeSVG value={`${origin}/checkin`} size={56} bgColor="transparent" fgColor="#009194" level="M" />
+                  <div>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: '#16a34a', marginBottom: 2 }}>✅ Ирц бүртгэл</p>
+                    <p style={{ fontSize: 10, color: '#64748b', lineHeight: 1.4 }}>
+                      QR уншуулж өөрийгөө<br />бүртгүүлнэ үү
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Scrollable: Top 5 compact */}

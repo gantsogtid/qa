@@ -14,9 +14,10 @@ export default function BottomNav() {
   }, [])
 
   const items = [
-    { href: isMobile ? '/questions' : '/display', activeHrefs: ['/display', '/questions'], icon: '🏠', label: 'Нүүр хуудас' },
-    { href: '/questions', activeHrefs: ['/questions'], icon: '💬', label: 'Асуулт' },
-    { href: '/admin', activeHrefs: ['/admin'], icon: '⚙️', label: 'Удирдлага' },
+    { href: isMobile ? '/questions' : '/display', activeHrefs: ['/display'], icon: '🏠', label: 'Нүүр' },
+    { href: '/checkin',   activeHrefs: ['/checkin'],   icon: '✅', label: 'Ирц'       },
+    { href: '/questions', activeHrefs: ['/questions'], icon: '💬', label: 'Асуулт'    },
+    { href: '/admin',     activeHrefs: ['/admin'],     icon: '⚙️', label: 'Удирдлага' },
   ]
 
   return (
