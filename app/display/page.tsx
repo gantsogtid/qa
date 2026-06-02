@@ -27,10 +27,22 @@ export default function DisplayPage() {
   useEffect(() => {
     setOrigin(window.location.origin)
     fetchQuestions()
+
     const ch = supabase.channel('display-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, fetchQuestions)
       .subscribe()
-    return () => { supabase.removeChannel(ch) }
+
+    // 30 секунд тутамд өгөгдөл дахин татна (realtime-ын fallback)
+    const pollTimer = setInterval(fetchQuestions, 30_000)
+
+    // 10 минут тутамд бүтэн хуудсыг reload хийнэ
+    const reloadTimer = setInterval(() => window.location.reload(), 10 * 60_000)
+
+    return () => {
+      supabase.removeChannel(ch)
+      clearInterval(pollTimer)
+      clearInterval(reloadTimer)
+    }
   }, [fetchQuestions])
 
   const qrUrl   = `${origin}/questions`
