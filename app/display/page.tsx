@@ -24,11 +24,13 @@ function downloadImage(url: string) {
 }
 
 export default function DisplayPage() {
-  const [questions, setQuestions]     = useState<Question[]>([])
-  const [origin, setOrigin]           = useState('')
+  const [questions, setQuestions]       = useState<Question[]>([])
+  const [totalReg, setTotalReg]         = useState(0)
+  const [totalIn,  setTotalIn]          = useState(0)
+  const [origin, setOrigin]             = useState('')
   const [programImage, setProgramImage] = useState(process.env.NEXT_PUBLIC_PROGRAM_IMAGE_URL || '')
-  const [eventTitle, setEventTitle]   = useState(process.env.NEXT_PUBLIC_EVENT_TITLE || 'Арга хэмжээ')
-  const [eventDate,  setEventDate]    = useState(process.env.NEXT_PUBLIC_EVENT_DATE  || '')
+  const [eventTitle, setEventTitle]     = useState(process.env.NEXT_PUBLIC_EVENT_TITLE || 'Арга хэмжээ')
+  const [eventDate,  setEventDate]      = useState(process.env.NEXT_PUBLIC_EVENT_DATE  || '')
 
   const fetchQuestions = useCallback(async () => {
     const { data } = await supabase
@@ -38,9 +40,16 @@ export default function DisplayPage() {
     setQuestions(data || [])
   }, [])
 
+  const fetchAttendance = useCallback(async () => {
+    const { data } = await supabase.from('attendance').select('checked_in')
+    setTotalReg(data?.length || 0)
+    setTotalIn(data?.filter(r => r.checked_in).length || 0)
+  }, [])
+
   useEffect(() => {
     setOrigin(window.location.origin)
     fetchQuestions()
+    fetchAttendance()
     Promise.all([
       getSetting('program_image_url'),
       getSetting('event_title'),
@@ -52,11 +61,12 @@ export default function DisplayPage() {
     })
     const ch = supabase.channel('display-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, fetchQuestions)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, fetchAttendance)
       .subscribe()
-    const pollTimer   = setInterval(fetchQuestions, 30_000)
+    const pollTimer   = setInterval(() => { fetchQuestions(); fetchAttendance() }, 30_000)
     const reloadTimer = setInterval(() => window.location.reload(), 10 * 60_000)
     return () => { supabase.removeChannel(ch); clearInterval(pollTimer); clearInterval(reloadTimer) }
-  }, [fetchQuestions])
+  }, [fetchQuestions, fetchAttendance])
 
   const qrUrl      = `${origin}/questions`
   const topFive    = questions.slice(0, 5)
@@ -78,21 +88,45 @@ export default function DisplayPage() {
 
       {/* ── Header ── */}
       <header style={{
-        background: GRAD, color: '#fff',
-        padding: '0 1.5rem', height: 60, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        background: GRAD, color: '#fff', flexShrink: 0,
       }}>
-        <div>
-          <h1 style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{eventTitle}</h1>
-          <p style={{ fontSize: 12, opacity: .75, marginTop: 1 }}>
-            Хөтөлбөр харах · QR уншуулж асуулт оруулах · Like дарж TOP 5 сонгох
-          </p>
-        </div>
-        {eventDate && (
-          <div style={{ fontSize: 13, fontWeight: 700, background: 'rgba(255,255,255,.18)', borderRadius: 8, padding: '5px 14px', whiteSpace: 'nowrap' }}>
-            {eventDate}
+        {/* Title row */}
+        <div style={{ padding: '10px 1.5rem 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <h1 style={{ fontSize: 16, fontWeight: 800, lineHeight: 1.2 }}>{eventTitle}</h1>
+            <p style={{ fontSize: 11, opacity: .75, marginTop: 1 }}>
+              Хөтөлбөр харах · QR уншуулж асуулт оруулах · Like дарж TOP 5 сонгох
+            </p>
           </div>
-        )}
+          {eventDate && (
+            <div style={{ fontSize: 13, fontWeight: 700, background: 'rgba(255,255,255,.18)', borderRadius: 8, padding: '5px 14px', whiteSpace: 'nowrap' }}>
+              {eventDate}
+            </div>
+          )}
+        </div>
+
+        {/* Stats row */}
+        <div style={{ display: 'flex', gap: 8, padding: '0 1.5rem 10px' }}>
+          {[
+            { n: totalReg,            label: 'Нийт буртгэл',     icon: '📋' },
+            { n: totalIn,             label: 'Ирсэн оролцогч',   icon: '✅' },
+            { n: questions.length,    label: 'Нийт асуулт',      icon: '💬' },
+            { n: totalLikes,          label: 'Нийт Like / санал', icon: '👍' },
+          ].map(s => (
+            <div key={s.label} style={{
+              flex: 1, background: 'rgba(255,255,255,.15)',
+              borderRadius: 10, padding: '8px 12px',
+              display: 'flex', alignItems: 'center', gap: 10,
+              backdropFilter: 'blur(4px)',
+            }}>
+              <span style={{ fontSize: 20 }}>{s.icon}</span>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1 }}>{s.n}</div>
+                <div style={{ fontSize: 10, opacity: .8, marginTop: 1 }}>{s.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
       </header>
 
       {/* ── Grid (fills remaining viewport) ── */}
