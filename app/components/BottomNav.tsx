@@ -2,7 +2,7 @@
 import { usePathname } from 'next/navigation'
 
 const items = [
-  { href: '/display', icon: '📺', label: 'Дэлгэц' },
+  { href: '/display', icon: '🏠', label: 'Нүүр хуудас' },
   { href: '/questions', icon: '💬', label: 'Асуулт' },
   { href: '/top', icon: '⭐', label: 'Топ 5' },
   { href: '/admin', icon: '👥', label: 'Ирц' },

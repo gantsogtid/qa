@@ -282,22 +282,6 @@ export default function DisplayPage() {
         </div>
       </div>
 
-      {/* ── View descriptions ── */}
-      <div className="display-grid" style={{ padding: '0 1rem 1rem', maxWidth: 1440, margin: '0 auto' }}>
-        {[
-          { icon: '🖥️', title: 'Projector view', desc: 'TOP 5 асуулгыг том дэлгэц дээр шуудхаруулна.' },
-          { icon: '📱', title: 'Mobile view', desc: 'QR уншуулсан хэрэглэгч асуулт оруулж, like дарна.' },
-          { icon: '⚙️', title: 'Admin view', desc: 'Хөтөлбөрийн зураг тохируулах, ирц бүртгэл удирдах.' },
-        ].map(v => (
-          <div key={v.title} style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', border: '1px solid #e2e8f0', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 20 }}>{v.icon}</span>
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: P }}>{v.title}</p>
-              <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{v.desc}</p>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
