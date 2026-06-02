@@ -14,12 +14,13 @@ export default function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([])
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
   const [text, setText] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [likingId, setLikingId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   const fetchAll = useCallback(async () => {
-    setLoading(true)
     const token = getToken()
     const [{ data: qs }, { data: ls }] = await Promise.all([
       supabase.from('questions').select('*').order('likes', { ascending: false }).order('created_at', { ascending: true }),
@@ -41,8 +42,15 @@ export default function QuestionsPage() {
   async function submit() {
     if (!text.trim()) return
     setSubmitting(true)
-    await supabase.from('questions').insert({ text: text.trim() })
-    setText('')
+    setError(null)
+    const { error: err } = await supabase.from('questions').insert({ text: text.trim() })
+    if (err) {
+      setError(err.message)
+    } else {
+      setText('')
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    }
     setSubmitting(false)
   }
 
@@ -51,93 +59,164 @@ export default function QuestionsPage() {
     setLikingId(id)
     const token = getToken()
     const liked = likedIds.has(id)
-
+    const q = questions.find(q => q.id === id)
     if (liked) {
       await supabase.from('question_likes').delete().eq('question_id', id).eq('user_token', token)
-      await supabase.from('questions').update({ likes: (questions.find(q => q.id === id)?.likes || 1) - 1 }).eq('id', id)
+      await supabase.from('questions').update({ likes: Math.max(0, (q?.likes || 1) - 1) }).eq('id', id)
     } else {
       await supabase.from('question_likes').insert({ question_id: id, user_token: token })
-      await supabase.from('questions').update({ likes: (questions.find(q => q.id === id)?.likes || 0) + 1 }).eq('id', id)
+      await supabase.from('questions').update({ likes: (q?.likes || 0) + 1 }).eq('id', id)
     }
     await fetchAll()
     setLikingId(null)
   }
 
-  return (
-    <>
-      <nav>
-        <span className="brand">Q&amp;A</span>
-        <a href="/display">Дэлгэц</a>
-        <a href="/questions" className="active">Асуулт</a>
-        <a href="/top">Топ 5</a>
-        <a href="/admin">Ирц</a>
-      </nav>
+  const canSubmit = !submitting && text.trim().length > 0
 
-      <div className="container">
-        <div style={{ background: '#fff', borderRadius: 14, padding: '1.5rem', marginBottom: '1.5rem', border: '1px solid #e5e5e5' }}>
-          <p style={{ fontSize: 13, color: '#666', marginBottom: 10 }}>Асуулт илгээх</p>
+  return (
+    <div style={{ minHeight: '100vh', background: '#f0f4f8' }}>
+      {/* Hero header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0ea5e9 0%, #1d4ed8 100%)',
+        padding: '1.75rem 1.25rem 3rem',
+        color: '#fff',
+      }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Асуулт илгээх</h1>
+        <p style={{ fontSize: 14, opacity: .8 }}>Асуулт бичиж, бусдын асуултад санал өгнө үү</p>
+      </div>
+
+      <div style={{ maxWidth: 600, margin: '-1.5rem auto 0', padding: '0 1rem 1rem' }}>
+
+        {/* Submit card */}
+        <div style={{
+          background: '#fff',
+          borderRadius: 20,
+          padding: '1.25rem',
+          boxShadow: '0 8px 32px rgba(0,0,0,.1)',
+          marginBottom: '1.25rem',
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 10 }}>
+            ✏️  Шинэ асуулт
+          </p>
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
-            placeholder="Асуултаа бичнэ үү..."
-            onKeyDown={e => e.key === 'Enter' && e.metaKey && submit()}
+            placeholder="Асуултаа энд бичнэ үү..."
+            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit() }}
+            rows={3}
+            style={{ marginBottom: 10 }}
           />
+
+          {error && (
+            <div style={{
+              marginBottom: 10, padding: '10px 14px',
+              background: '#fef2f2', border: '1px solid #fecaca',
+              borderRadius: 10, fontSize: 13, color: '#dc2626',
+            }}>
+              ⚠️ {error}
+            </div>
+          )}
+          {success && (
+            <div style={{
+              marginBottom: 10, padding: '10px 14px',
+              background: '#f0fdf4', border: '1px solid #bbf7d0',
+              borderRadius: 10, fontSize: 13, color: '#16a34a',
+            }}>
+              ✓ Асуулт амжилттай илгээгдлээ!
+            </div>
+          )}
+
           <button
             onClick={submit}
-            disabled={submitting || !text.trim()}
+            disabled={!canSubmit}
             style={{
-              marginTop: 10, padding: '10px 24px',
-              background: submitting || !text.trim() ? '#e5e5e5' : '#2563eb',
-              color: submitting || !text.trim() ? '#999' : '#fff',
-              borderRadius: 8
+              width: '100%', padding: '13px',
+              background: canSubmit
+                ? 'linear-gradient(135deg, #0ea5e9, #1d4ed8)'
+                : '#e2e8f0',
+              color: canSubmit ? '#fff' : '#94a3b8',
+              borderRadius: 12, fontSize: 15, fontWeight: 700,
+              boxShadow: canSubmit ? '0 4px 16px rgba(14,165,233,.35)' : 'none',
+              transform: canSubmit ? 'none' : 'none',
             }}
           >
-            {submitting ? 'Илгээж байна...' : 'Илгээх'}
+            {submitting ? 'Илгээж байна...' : 'Асуулт илгээх →'}
           </button>
         </div>
 
-        <p style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
-          Нийт {questions.length} асуулт — Like дарж дэмжих
-        </p>
+        {/* Stats row */}
+        <div style={{
+          display: 'flex', gap: 8, marginBottom: 12,
+        }}>
+          {[
+            { n: questions.length, label: 'Нийт асуулт', color: '#0ea5e9' },
+            { n: questions.reduce((s, q) => s + q.likes, 0), label: 'Нийт санал', color: '#1d4ed8' },
+            { n: questions.filter(q => q.likes > 0).length, label: 'Санал авсан', color: '#7c3aed' },
+          ].map(s => (
+            <div key={s.label} style={{
+              flex: 1, background: '#fff', borderRadius: 12,
+              padding: '10px 8px', textAlign: 'center',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 1px 4px rgba(0,0,0,.04)',
+            }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color }}>{s.n}</div>
+              <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
 
-        {loading && questions.length === 0 && (
-          <p style={{ color: '#999', fontSize: 14, textAlign: 'center', padding: '2rem' }}>Ачааллаж байна...</p>
+        {/* List */}
+        {loading && (
+          <p style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem', fontSize: 14 }}>
+            Ачааллаж байна...
+          </p>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {questions.map((q, i) => {
             const liked = likedIds.has(q.id)
+            const isTop3 = i < 3
             return (
               <div key={q.id} style={{
-                background: '#fff', borderRadius: 12,
-                border: `1px solid ${liked ? '#bfdbfe' : '#e5e5e5'}`,
-                padding: '14px 16px',
-                display: 'flex', alignItems: 'flex-start', gap: 12,
-                transition: 'border-color .2s'
+                background: '#fff',
+                borderRadius: 14,
+                border: `1.5px solid ${liked ? '#bae6fd' : isTop3 ? '#e0f2fe' : '#f1f5f9'}`,
+                padding: '13px 13px 13px 15px',
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                boxShadow: isTop3
+                  ? '0 2px 10px rgba(14,165,233,.07)'
+                  : '0 1px 3px rgba(0,0,0,.04)',
               }}>
-                <span style={{ fontSize: 12, color: '#999', minWidth: 20, paddingTop: 2 }}>#{i + 1}</span>
-                <p style={{ flex: 1, fontSize: 15, lineHeight: 1.6, color: '#1a1a1a' }}>{q.text}</p>
+                <span style={{
+                  fontSize: isTop3 ? 18 : 12,
+                  minWidth: 22, paddingTop: isTop3 ? 0 : 3,
+                  color: '#cbd5e1', fontWeight: 700,
+                }}>
+                  {isTop3 ? ['🥇','🥈','🥉'][i] : `#${i+1}`}
+                </span>
+                <p style={{ flex: 1, fontSize: 14, lineHeight: 1.65, color: '#1e293b' }}>{q.text}</p>
                 <button
                   onClick={() => toggleLike(q.id)}
                   disabled={likingId === q.id}
                   style={{
                     flexShrink: 0,
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-                    padding: '6px 10px', borderRadius: 8,
-                    background: liked ? '#eff6ff' : '#f5f5f5',
-                    color: liked ? '#2563eb' : '#666',
-                    border: `1px solid ${liked ? '#bfdbfe' : '#e5e5e5'}`,
-                    fontSize: 18, minWidth: 48
+                    padding: '8px 12px', borderRadius: 12,
+                    background: liked ? '#eff6ff' : '#f8fafc',
+                    color: liked ? '#2563eb' : '#94a3b8',
+                    border: `1.5px solid ${liked ? '#bfdbfe' : '#e2e8f0'}`,
+                    minWidth: 52, fontSize: 20,
+                    boxShadow: liked ? '0 2px 8px rgba(37,99,235,.12)' : 'none',
                   }}
                 >
                   {liked ? '♥' : '♡'}
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>{q.likes}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700 }}>{q.likes}</span>
                 </button>
               </div>
             )
           })}
         </div>
       </div>
-    </>
+    </div>
   )
 }
