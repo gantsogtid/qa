@@ -28,41 +28,32 @@ export default function CheckinPage() {
     if (!query.trim()) return
     setLoading(true)
     setNotFound(false)
-    const q = query.trim()
-    let data: any[] = []
+    const q = query.trim().toLowerCase()
 
-    // Бүх боломжит талбараар дараалан хайх
-    const searches = [
-      // 1. Бүх талбар (шинэ схем)
-      () => supabase.from('attendance').select('*')
-        .or(`name.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%,phone.ilike.%${q}%,hospital.ilike.%${q}%`)
-        .limit(10),
-      // 2. Зөвхөн name + hospital (хуучин схем fallback)
-      () => supabase.from('attendance').select('*')
-        .or(`name.ilike.%${q}%,hospital.ilike.%${q}%`)
-        .limit(10),
-      // 3. Зөвхөн name
-      () => supabase.from('attendance').select('*')
-        .ilike('name', `%${q}%`)
-        .limit(10),
-    ]
+    // Бүх өгөгдлийг татаж client дээр шүүх — баганын алдаанаас үл хамааран ажиллана
+    const { data: all } = await supabase.from('attendance').select('*')
+    setLoading(false)
 
-    for (const search of searches) {
-      const res = await search()
-      if (!res.error && res.data && res.data.length > 0) {
-        data = res.data
-        break
-      }
-      if (!res.error && res.data !== null) break // хоосон үр дүн, алдаагүй
+    if (!all) {
+      setNotFound(true)
+      setResults([])
+      return
     }
 
-    setLoading(false)
-    if (!data || data.length === 0) {
+    const matched = all.filter(p => {
+      const fields = [
+        p.name, p.first_name, p.last_name,
+        p.phone, p.hospital, p.email, p.position_title
+      ]
+      return fields.some(f => f && String(f).toLowerCase().includes(q))
+    })
+
+    if (matched.length === 0) {
       setNotFound(true)
       setResults([])
       setStep('search')
     } else {
-      setResults(data)
+      setResults(matched.slice(0, 10))
       setStep('result')
     }
   }, [query])
