@@ -2,9 +2,10 @@
 import { usePathname } from 'next/navigation'
 
 const items = [
-  { href: '/checkin',   icon: '✅', label: 'Ирц'        },
-  { href: '/questions', icon: '💬', label: 'Асуулт'     },
-  { href: '/admin',     icon: '⚙️', label: 'Удирдлага'  },
+  { href: '/display',   icon: '🏠', label: 'Нүүр',      desktopOnly: true  },
+  { href: '/checkin',   icon: '✅', label: 'Ирц',        desktopOnly: false },
+  { href: '/questions', icon: '💬', label: 'Асуулт',     desktopOnly: false },
+  { href: '/admin',     icon: '⚙️', label: 'Удирдлага',  desktopOnly: false },
 ]
 
 export default function BottomNav() {
@@ -14,8 +15,10 @@ export default function BottomNav() {
 
   return (
     <nav className="bottom-nav">
-      {items.map(({ href, icon, label }) => (
-        <a key={label} href={href} className={path === href ? 'active' : ''}>
+      {items.map(({ href, icon, label, desktopOnly }) => (
+        <a key={label} href={href}
+          className={[path === href ? 'active' : '', desktopOnly ? 'desktop-only' : ''].join(' ').trim()}
+        >
           <span className="nav-icon">{icon}</span>
           <span className="nav-label">{label}</span>
         </a>
