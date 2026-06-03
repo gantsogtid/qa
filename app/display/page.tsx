@@ -257,42 +257,11 @@ export default function DisplayPage() {
               ))}
             </div>
 
-            {/* Top 5 section (60%) + Шинэ бүртгэл (40%) */}
+            {/* Бүртгэгдсэн асуумжууд */}
             <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
-              {/* Top 5 */}
-              <div style={{ flex: 6, overflowY: 'auto', padding: '6px 10px', borderBottom: '2px solid #f1f5f9' }}>
-                <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: .5, marginBottom: 6, paddingLeft: 2 }}>
-                  🏆 ХАМГИЙН ИХ LIKE АВСАН 5 АСУУЛТ
-                </p>
-                {topFive.length === 0 && (
-                  <p style={{ textAlign: 'center', color: '#94a3b8', padding: '1rem', fontSize: 12 }}>Одоохондоо асуулт байхгүй</p>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {topFive.map((q, i) => (
-                    <div key={q.id} style={{
-                      borderRadius: 10, padding: '9px 12px',
-                      border: `1.5px solid ${i===0?'#fde047':i===1?'#cbd5e1':i===2?'#fdba74':'#e2e8f0'}`,
-                      background: i===0?'#fefce8':i===1?'#f8fafc':i===2?'#fff7ed':'#fff',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 18, flexShrink: 0 }}>{MEDALS[i]}</span>
-                        <p style={{ flex: 1, fontSize: 12, fontWeight: i<3?600:400, lineHeight: 1.5, color: '#1e293b' }}>{q.text}</p>
-                        <div style={{ flexShrink: 0, textAlign: 'center', background: '#fff', borderRadius: 7, padding: '4px 8px', border: `1px solid ${i===0?'#fde047':i===1?'#cbd5e1':i===2?'#fdba74':'#e2e8f0'}`, minWidth: 44 }}>
-                          <div style={{ fontSize: 15, fontWeight: 800, color: P }}>{q.likes}</div>
-                          <div style={{ fontSize: 9, color: '#94a3b8' }}>санал</div>
-                        </div>
-                      </div>
-                      <div style={{ height: 4, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${maxLikes>0?Math.round((q.likes/maxLikes)*100):0}%`, background: PROG_COLORS[i], borderRadius: 4, transition: 'width .6s ease' }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {/* Бүх бүртгэгдсэн асуумж — шинэнээс хуучин руу */}
-              <div style={{ flex: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: .5, padding: '6px 12px 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 0 3px rgba(34,197,94,.25)', animation: 'pulse 2s infinite' }} />
                   БҮРТГЭГДСЭН АСУУМЖУУД
