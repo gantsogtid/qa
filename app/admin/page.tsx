@@ -95,9 +95,15 @@ export default function AdminPage() {
   }
 
   async function deleteAllQuestions() {
-    if (!confirm('Бүх асуултыг устгах уу? Буцааж сэргээх боломжгүй!')) return
-    await supabase.from('question_likes').delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    await supabase.from('questions').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+    if (!confirm(`Нийт ${questions.length} асуултыг бүгдийг устгах уу?`)) return
+    const { data: qs } = await supabase.from('questions').select('id')
+    if (qs && qs.length > 0) {
+      const ids = qs.map((r: any) => r.id)
+      await supabase.from('question_likes').delete().in('question_id', ids)
+      for (let i = 0; i < ids.length; i += 100) {
+        await supabase.from('questions').delete().in('id', ids.slice(i, i + 100))
+      }
+    }
     await fetchQuestions()
   }
 
