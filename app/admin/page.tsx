@@ -104,28 +104,67 @@ export default function AdminPage() {
   async function importCSV(file: File) {
     setCsvImporting(true)
     setCsvResult(null)
-    const text = await file.text()
-    const rows = parseCSV(text)
-    // Толгой мөр илрүүлэх (эхний нүд нь тоо биш бол)
-    const startIdx = isNaN(Number(rows[0]?.[0])) ? 1 : 0
-    const dataRows = rows.slice(startIdx).filter(r => r.length >= 4)
 
-    const records = dataRows.map(cols => ({
-      hospital:       (cols[1] || '').trim(),
-      last_name:      (cols[2] || '').trim(),
-      first_name:     (cols[3] || '').trim(),
-      position_title: (cols[4] || '').trim(),
-      email:          (cols[5] || '').trim(),
-      phone:          (cols[6] || '').trim(),
-      name:           `${(cols[3] || '').trim()} ${(cols[2] || '').trim()}`.trim(),
-      checked_in:     false,
-    })).filter(r => r.first_name || r.last_name)
+    let text = await file.text()
+    // BOM устгах
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1)
+
+    const rows = parseCSV(text)
+    if (rows.length < 2) {
+      setCsvResult('error:Файл хоосон байна')
+      setCsvImporting(false)
+      return
+    }
+
+    // Header мөрөөс баганын байрлал илрүүлэх
+    const header = rows[0].map(h => h.toLowerCase().trim())
+    const find = (...keys: string[]) => {
+      const i = header.findIndex(h => keys.some(k => h.includes(k)))
+      return i >= 0 ? i : -1
+    }
+
+    const ci = {
+      hospital:       find('эмнэлэг', 'байгуулага', 'ажилладаг', 'hospital'),
+      last_name:      find('овог', 'lastname', 'last_name'),
+      first_name:     find('нэр', 'firstname', 'first_name'),
+      position_title: find('тушаал', 'мэргэжил', 'position'),
+      email:          find('цахим', 'мэйл', 'email', '@'),
+      phone:          find('утас', 'дугаар', 'phone', 'mobile'),
+    }
+
+    // Header мөр байгаа эсэхийг шалгах — эхний баганын утга тоо биш бол header
+    const hasHeader = isNaN(Number(rows[0][0]?.replace(/\s/g, '')))
+    const startIdx = hasHeader ? 1 : 0
+
+    // Positional fallback (header олдоогүй бол)
+    const col = (i: number, fallback: number, cols: string[]) =>
+      (cols[i >= 0 ? i : fallback] || '').trim()
+
+    const dataRows = rows.slice(startIdx).filter(r => r.length >= 3)
+    const records = dataRows.map(cols => {
+      const first = col(ci.first_name,  3, cols)
+      const last  = col(ci.last_name,   2, cols)
+      return {
+        hospital:       col(ci.hospital,       1, cols),
+        last_name:      last,
+        first_name:     first,
+        position_title: col(ci.position_title, 4, cols),
+        email:          col(ci.email,          5, cols),
+        phone:          col(ci.phone,          6, cols),
+        name:           `${first} ${last}`.trim(),
+        checked_in:     false,
+      }
+    }).filter(r => r.first_name || r.last_name)
 
     if (records.length === 0) {
       setCsvResult('error:Мөр олдсонгүй. CSV форматаа шалгана уу.')
       setCsvImporting(false)
       return
     }
+
+    // Дебаг: эхний мөрийн утасны дугаарыг шалгах
+    console.log('Эхний мөр:', records[0])
+    console.log('Утасны багана индекс:', ci.phone)
 
     const { error } = await supabase.from('attendance').insert(records)
     if (error) {

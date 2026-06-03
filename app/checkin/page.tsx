@@ -29,13 +29,49 @@ export default function CheckinPage() {
     setLoading(true)
     setNotFound(false)
     const q = query.trim()
-    const { data } = await supabase
-      .from('attendance')
-      .select('*')
-      .or(`name.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%,phone.ilike.%${q}%`)
-      .limit(10)
+
+    // Утасны дугаар хайх (зөвхөн тоо бол)
+    const isPhone = /^\d+$/.test(q)
+
+    let data: any[] = []
+    let err: any = null
+
+    if (isPhone) {
+      // Утасны дугаараар хайх
+      const res = await supabase
+        .from('attendance')
+        .select('*')
+        .ilike('phone', `%${q}%`)
+        .limit(10)
+      data = res.data || []
+      err = res.error
+    } else {
+      // Нэрээр хайх — эхлээд шинэ баганаар, дараа name-аар
+      const res = await supabase
+        .from('attendance')
+        .select('*')
+        .or(`name.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+        .limit(10)
+      data = res.data || []
+      err = res.error
+
+      // Хэрэв алдаа гарвал зөвхөн name баганаар хайх (migration хийгдээгүй үед)
+      if (err || data.length === 0) {
+        const fallback = await supabase
+          .from('attendance')
+          .select('*')
+          .ilike('name', `%${q}%`)
+          .limit(10)
+        data = fallback.data || []
+        err = fallback.error
+      }
+    }
+
     setLoading(false)
-    if (!data || data.length === 0) {
+    if (err) {
+      setNotFound(true)
+      setResults([])
+    } else if (!data || data.length === 0) {
       setNotFound(true)
       setResults([])
       setStep('search')
