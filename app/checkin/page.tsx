@@ -1,6 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { supabase, type AttendanceRow } from '@/lib/supabase'
 
 const P    = '#009194'
@@ -19,6 +20,7 @@ export default function CheckinPage() {
   const [step, setStep]       = useState<Step>('search')
   const [loading, setLoading] = useState(false)
   const [notFound, setNotFound] = useState(false)
+  const [origin, setOrigin]   = useState('')
 
   // Modal — confirm / edit before checkin
   const [modal, setModal]     = useState<AttendanceRow | null>(null)
@@ -26,9 +28,11 @@ export default function CheckinPage() {
   const [saving, setSaving]   = useState(false)
   const [done, setDone]       = useState<AttendanceRow | null>(null)
 
-  // Self-register form
+  // Self-register form (kept for mobile access)
   const [regForm, setRegForm] = useState({ last_name: '', first_name: '', phone: '', hospital: '', position_title: '', email: '' })
   const [registering, setRegistering] = useState(false)
+
+  useEffect(() => { setOrigin(window.location.origin) }, [])
 
   /* ── Search ── */
   const search = useCallback(async () => {
@@ -137,16 +141,30 @@ export default function CheckinPage() {
               </button>
             </div>
 
-            {/* Not found */}
+            {/* Not found — QR харуулах */}
             {notFound && (
-              <div style={{ background: '#fff', borderRadius: 16, padding: '1.25rem', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,.06)', marginBottom: 10 }}>
+              <div style={{ background: '#fff', borderRadius: 20, padding: '1.5rem', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,.08)', marginBottom: 10 }}>
                 <div style={{ fontSize: 36, marginBottom: 8 }}>🤔</div>
-                <p style={{ fontSize: 15, fontWeight: 600, color: '#1e293b', marginBottom: 4 }}>"{query}" олдсонгүй</p>
-                <p style={{ fontSize: 13, color: '#64748b', marginBottom: 14 }}>Та урьдчилан бүртгэлгүй байна уу?</p>
-                <button onClick={() => setStep('register')}
-                  style={{ padding: '10px 28px', background: GRAD, color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700 }}>
-                  + Шинээр бүртгүүлэх
-                </button>
+                <p style={{ fontSize: 16, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>"{query}" олдсонгүй</p>
+                <p style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>
+                  Та урьдчилан бүртгэлгүй байна.<br />
+                  <strong>Гар утсаараа QR кодыг уншуулж бүртгүүлнэ үү</strong>
+                </p>
+                {origin && (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                    <div style={{ background: GRAD, borderRadius: 18, padding: 14, boxShadow: '0 6px 24px rgba(0,145,148,.35)' }}>
+                      <QRCodeSVG value={`${origin}/register`} size={160} bgColor="transparent" fgColor="#fff" level="M" />
+                    </div>
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '10px 18px', width: '100%' }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
+                        📱 Утасаараа уншуулж бүртгүүлнэ үү
+                      </p>
+                      <p style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+                        {origin}/register
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -197,10 +215,6 @@ export default function CheckinPage() {
                   </div>
                 ))}
 
-                <button onClick={() => setStep('register')}
-                  style={{ padding: '10px', background: 'transparent', color: '#64748b', border: '1.5px dashed #cbd5e1', borderRadius: 12, fontSize: 13, fontWeight: 600 }}>
-                  Олдсонгүй — Шинээр бүртгүүлэх
-                </button>
               </div>
             )}
           </>
