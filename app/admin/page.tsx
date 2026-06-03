@@ -304,7 +304,20 @@ export default function AdminPage() {
 
             {/* CSV Import */}
             <div style={{ background: '#fff', borderRadius: 16, padding: '1rem 1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>📂 Excel → CSV оруулах</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>📂 Excel → CSV оруулах</p>
+                <button
+                  onClick={async () => {
+                    if (!confirm('Бүх ирцийн бүртгэлийг устгаж дахин оруулах уу?')) return
+                    await supabase.from('attendance').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+                    await fetchList()
+                    setCsvResult(null)
+                  }}
+                  style={{ fontSize: 11, padding: '4px 10px', borderRadius: 8, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', fontWeight: 600 }}
+                >
+                  🗑️ Бүгдийг арилгаж дахин оруулах
+                </button>
+              </div>
               <p style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
                 Excel файлаа CSV (UTF-8) хэлбэрт хадгалаад upload хийнэ үү.<br/>
                 Баганын дараалал: A=дугаар, B=эмнэлэг, C=овог, D=нэр, E=албан тушаал, F=и-мэйл, G=утас

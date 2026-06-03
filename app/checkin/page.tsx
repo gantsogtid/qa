@@ -29,49 +29,35 @@ export default function CheckinPage() {
     setLoading(true)
     setNotFound(false)
     const q = query.trim()
-
-    // Утасны дугаар хайх (зөвхөн тоо бол)
-    const isPhone = /^\d+$/.test(q)
-
     let data: any[] = []
-    let err: any = null
 
-    if (isPhone) {
-      // Утасны дугаараар хайх
-      const res = await supabase
-        .from('attendance')
-        .select('*')
-        .ilike('phone', `%${q}%`)
-        .limit(10)
-      data = res.data || []
-      err = res.error
-    } else {
-      // Нэрээр хайх — эхлээд шинэ баганаар, дараа name-аар
-      const res = await supabase
-        .from('attendance')
-        .select('*')
-        .or(`name.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
-        .limit(10)
-      data = res.data || []
-      err = res.error
+    // Бүх боломжит талбараар дараалан хайх
+    const searches = [
+      // 1. Бүх талбар (шинэ схем)
+      () => supabase.from('attendance').select('*')
+        .or(`name.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%,phone.ilike.%${q}%,hospital.ilike.%${q}%`)
+        .limit(10),
+      // 2. Зөвхөн name + hospital (хуучин схем fallback)
+      () => supabase.from('attendance').select('*')
+        .or(`name.ilike.%${q}%,hospital.ilike.%${q}%`)
+        .limit(10),
+      // 3. Зөвхөн name
+      () => supabase.from('attendance').select('*')
+        .ilike('name', `%${q}%`)
+        .limit(10),
+    ]
 
-      // Хэрэв алдаа гарвал зөвхөн name баганаар хайх (migration хийгдээгүй үед)
-      if (err || data.length === 0) {
-        const fallback = await supabase
-          .from('attendance')
-          .select('*')
-          .ilike('name', `%${q}%`)
-          .limit(10)
-        data = fallback.data || []
-        err = fallback.error
+    for (const search of searches) {
+      const res = await search()
+      if (!res.error && res.data && res.data.length > 0) {
+        data = res.data
+        break
       }
+      if (!res.error && res.data !== null) break // хоосон үр дүн, алдаагүй
     }
 
     setLoading(false)
-    if (err) {
-      setNotFound(true)
-      setResults([])
-    } else if (!data || data.length === 0) {
+    if (!data || data.length === 0) {
       setNotFound(true)
       setResults([])
       setStep('search')
