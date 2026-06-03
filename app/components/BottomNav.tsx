@@ -1,29 +1,22 @@
 'use client'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+
+const items = [
+  { href: '/questions', icon: '🏠', label: 'Нүүр'      },
+  { href: '/checkin',   icon: '✅', label: 'Ирц'        },
+  { href: '/questions', icon: '💬', label: 'Асуулт'     },
+  { href: '/admin',     icon: '⚙️', label: 'Удирдлага'  },
+]
 
 export default function BottomNav() {
   const path = usePathname()
-  const [isMobile, setIsMobile] = useState(false)
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768)
-    check()
-    window.addEventListener('resize', check)
-    return () => window.removeEventListener('resize', check)
-  }, [])
-
-  const items = [
-    { href: isMobile ? '/questions' : '/display', activeHrefs: ['/display'], icon: '🏠', label: 'Нүүр' },
-    { href: '/checkin',   activeHrefs: ['/checkin'],   icon: '✅', label: 'Ирц'       },
-    { href: '/questions', activeHrefs: ['/questions'], icon: '💬', label: 'Асуулт'    },
-    { href: '/admin',     activeHrefs: ['/admin'],     icon: '⚙️', label: 'Удирдлага' },
-  ]
+  // /display хуудсанд nav харуулахгүй (проектор дэлгэц)
+  if (path === '/display') return null
 
   return (
     <nav className="bottom-nav">
-      {items.map(({ href, activeHrefs, icon, label }) => (
-        <a key={label} href={href} className={activeHrefs.includes(path) ? 'active' : ''}>
+      {items.map(({ href, icon, label }) => (
+        <a key={label} href={href} className={path === href ? 'active' : ''}>
           <span className="nav-icon">{icon}</span>
           <span className="nav-label">{label}</span>
         </a>
