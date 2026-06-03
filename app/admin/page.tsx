@@ -308,8 +308,15 @@ export default function AdminPage() {
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>📂 Excel → CSV оруулах</p>
                 <button
                   onClick={async () => {
-                    if (!confirm('Бүх ирцийн бүртгэлийг устгаж дахин оруулах уу?')) return
-                    await supabase.from('attendance').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+                    if (!confirm(`Нийт ${list.length} бүртгэлийг бүгдийг устгах уу?`)) return
+                    const { data: rows } = await supabase.from('attendance').select('id')
+                    if (rows && rows.length > 0) {
+                      const ids = rows.map((r: any) => r.id)
+                      // Batch 100-аар устгах
+                      for (let i = 0; i < ids.length; i += 100) {
+                        await supabase.from('attendance').delete().in('id', ids.slice(i, i + 100))
+                      }
+                    }
                     await fetchList()
                     setCsvResult(null)
                   }}
