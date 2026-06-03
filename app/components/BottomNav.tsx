@@ -9,9 +9,6 @@ const items = [
 
 export default function BottomNav() {
   const path = usePathname()
-  // /display хуудсанд nav харуулахгүй (проектор дэлгэц)
-  if (path === '/display') return null
-
   return (
     <nav className="bottom-nav">
       {items.map(({ href, icon, label, desktopOnly }) => (
