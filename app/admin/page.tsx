@@ -184,7 +184,7 @@ export default function AdminPage() {
 
   const filtered = list.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
   const totalIn  = list.filter(p => p.checked_in).length
-  const ADMIN_PW = process.env.NEXT_PUBLIC_ADMIN_PW || 'admin123'
+  const ADMIN_PW = process.env.NEXT_PUBLIC_ADMIN_PW || 'GANaaaa9508++'
 
   const SaveBtn = ({ id, onClick }: { id: string; onClick: () => void }) => (
     <button onClick={onClick} disabled={saving === id}
