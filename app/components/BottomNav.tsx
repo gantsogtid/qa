@@ -2,10 +2,9 @@
 import { usePathname } from 'next/navigation'
 
 const items = [
-  { href: '/display',   icon: '🏠', label: 'Нүүр',      desktopOnly: true  },
-  { href: '/checkin',   icon: '✅', label: 'Ирц',        desktopOnly: false },
-  { href: '/questions', icon: '💬', label: 'Асуулт',     desktopOnly: false },
-  { href: '/admin',     icon: '⚙️', label: 'Удирдлага',  desktopOnly: false },
+  { href: '/display',   icon: '🏠', label: 'Нүүр',  desktopOnly: true  },
+  { href: '/checkin',   icon: '✅', label: 'Ирц',    desktopOnly: false },
+  { href: '/questions', icon: '💬', label: 'Асуулт', desktopOnly: false },
 ]
 
 export default function BottomNav() {
