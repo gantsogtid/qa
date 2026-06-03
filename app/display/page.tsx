@@ -238,9 +238,9 @@ export default function DisplayPage() {
           {/* ── Col 3: Live voting + Шинэ бүртгэл ── */}
           <div style={card}>
             <div className="card-header">
-              <span>⭐</span>
-              <span className="card-title">3. Live voting · Оноо өгөх хэсэг</span>
-              <span className="badge badge-teal">TOP 5</span>
+              <span>📝</span>
+              <span className="card-title">3. Асуумж бүртгэл</span>
+              <span className="badge badge-teal">LIVE</span>
             </div>
 
             {/* Stats */}
@@ -291,30 +291,38 @@ export default function DisplayPage() {
                 </div>
               </div>
 
-              {/* Шинэ бүртгэл live feed */}
+              {/* Бүх бүртгэгдсэн асуумж — шинэнээс хуучин руу */}
               <div style={{ flex: 4, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: .5, padding: '6px 12px 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 0 2px rgba(34,197,94,.3)' }} />
-                  ШИНЭ БҮРТГЭЛ
+                <p style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', letterSpacing: .5, padding: '6px 12px 4px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 0 3px rgba(34,197,94,.25)', animation: 'pulse 2s infinite' }} />
+                  БҮРТГЭГДСЭН АСУУМЖУУД
+                  <span style={{ marginLeft: 'auto', fontWeight: 800, color: P }}>{recentQs.length}</span>
                 </p>
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px 8px', display: 'flex', flexDirection: 'column', gap: 5 }}>
                   {recentQs.length === 0 && (
-                    <p style={{ textAlign: 'center', color: '#94a3b8', padding: '1rem', fontSize: 11 }}>Асуулт байхгүй</p>
+                    <p style={{ textAlign: 'center', color: '#94a3b8', padding: '1.5rem', fontSize: 11 }}>Одоохондоо асуумж байхгүй</p>
                   )}
-                  {recentQs.map(q => (
+                  {recentQs.map((q, i) => (
                     <div key={q.id} style={{
                       display: 'flex', alignItems: 'flex-start', gap: 8,
-                      padding: '7px 10px', borderRadius: 8,
-                      background: isNew(q.created_at) ? '#f0fdf4' : '#f8fafc',
+                      padding: '8px 10px', borderRadius: 8,
+                      background: isNew(q.created_at) ? '#f0fdf4' : '#fff',
                       border: `1px solid ${isNew(q.created_at) ? '#bbf7d0' : '#f1f5f9'}`,
                     }}>
+                      <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, color: '#cbd5e1', minWidth: 18, paddingTop: 2 }}>
+                        {recentQs.length - i}
+                      </span>
                       {isNew(q.created_at) && (
-                        <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 700, background: '#22c55e', color: '#fff', borderRadius: 4, padding: '1px 5px', marginTop: 2 }}>
+                        <span style={{ flexShrink: 0, fontSize: 9, fontWeight: 800, background: '#22c55e', color: '#fff', borderRadius: 4, padding: '2px 6px', marginTop: 2, whiteSpace: 'nowrap' }}>
                           NEW
                         </span>
                       )}
-                      <p style={{ flex: 1, fontSize: 11, lineHeight: 1.5, color: '#1e293b', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{q.text}</p>
-                      <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#94a3b8' }}>{q.likes > 0 ? `♥ ${q.likes}` : ''}</span>
+                      <p style={{ flex: 1, fontSize: 11, lineHeight: 1.55, color: '#1e293b', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                        {q.text}
+                      </p>
+                      {q.likes > 0 && (
+                        <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: P }}>♥ {q.likes}</span>
+                      )}
                     </div>
                   ))}
                 </div>
