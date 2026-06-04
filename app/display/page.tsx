@@ -108,7 +108,7 @@ export default function DisplayPage() {
         {/* Stats row */}
         <div style={{ display: 'flex', gap: 8, padding: '0 1.5rem 10px' }}>
           {[
-            { n: totalReg,            label: 'Нийт буртгэл',     icon: '📋' },
+            { n: totalReg,            label: 'Нийт бүртгэл',     icon: '📋' },
             { n: totalIn,             label: 'Ирсэн оролцогч',   icon: '✅' },
             { n: questions.length,    label: 'Нийт асуулт',      icon: '💬' },
             { n: totalLikes,          label: 'Нийт Like / санал', icon: '👍' },
