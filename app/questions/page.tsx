@@ -63,15 +63,7 @@ export default function QuestionsPage() {
     if (likingId) return
     setLikingId(id)
     const token = getToken()
-    const liked = likedIds.has(id)
-    const q = questions.find(q => q.id === id)
-    if (liked) {
-      await supabase.from('question_likes').delete().eq('question_id', id).eq('user_token', token)
-      await supabase.from('questions').update({ likes: Math.max(0, (q?.likes || 1) - 1) }).eq('id', id)
-    } else {
-      await supabase.from('question_likes').insert({ question_id: id, user_token: token })
-      await supabase.from('questions').update({ likes: (q?.likes || 0) + 1 }).eq('id', id)
-    }
+    await supabase.rpc('toggle_like', { p_question_id: id, p_user_token: token })
     await fetchAll()
     setLikingId(null)
   }

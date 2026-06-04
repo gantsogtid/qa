@@ -23,7 +23,7 @@ export default function RegisterPage() {
   const [done, setDone]     = useState(false)
   const [error, setError]   = useState<string | null>(null)
 
-  const canSubmit = form.last_name.trim() || form.first_name.trim()
+  const canSubmit = form.last_name.trim() && form.first_name.trim()
 
   async function submit() {
     if (!canSubmit) return

@@ -32,7 +32,7 @@ export async function getSetting(key: string): Promise<string> {
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
-  await supabase.from('settings').update({ value }).eq('key', key)
+  await supabase.from('settings').upsert({ key, value })
 }
 
 export function parseCSV(text: string): string[][] {
