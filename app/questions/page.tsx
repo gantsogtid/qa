@@ -65,7 +65,12 @@ export default function QuestionsPage() {
     try {
       const token = getToken()
       const { error } = await supabase.rpc('toggle_like', { p_question_id: id, p_user_token: token })
-      if (!error) await fetchAll()
+      if (error) {
+        console.error('toggle_like:', error.message)
+        setError('Санал өгөхөд алдаа гарлаа: ' + error.message)
+      } else {
+        await fetchAll()
+      }
     } finally {
       setLikingId(null)
     }

@@ -59,7 +59,10 @@ export default function AdminPage() {
   async function saveSetting(key: string, value: string, id: string) {
     setSaving(id)
     const { error } = await setSetting(key, value)
-    if (error) { setSaving(null); setSaved(`err-${id}`); setTimeout(() => setSaved(null), 3000); return }
+    if (error) {
+      console.error('setSetting:', key, error)
+      setSaving(null); setSaved(`err-${id}`); setTimeout(() => setSaved(null), 3000); return
+    }
     if (key === 'program_image_url') { setImageUrl(value) }
     if (key === 'event_title') { setEventTitle(value) }
     if (key === 'event_date') { setEventDate(value) }
