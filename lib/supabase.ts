@@ -31,8 +31,9 @@ export async function getSetting(key: string): Promise<string> {
   return data?.value || ''
 }
 
-export async function setSetting(key: string, value: string): Promise<void> {
-  await supabase.from('settings').upsert({ key, value })
+export async function setSetting(key: string, value: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('settings').upsert({ key, value })
+  return { error: error?.message ?? null }
 }
 
 export function parseCSV(text: string): string[][] {

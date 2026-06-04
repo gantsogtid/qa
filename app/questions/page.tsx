@@ -62,10 +62,13 @@ export default function QuestionsPage() {
   async function toggleLike(id: string) {
     if (likingId) return
     setLikingId(id)
-    const token = getToken()
-    await supabase.rpc('toggle_like', { p_question_id: id, p_user_token: token })
-    await fetchAll()
-    setLikingId(null)
+    try {
+      const token = getToken()
+      const { error } = await supabase.rpc('toggle_like', { p_question_id: id, p_user_token: token })
+      if (!error) await fetchAll()
+    } finally {
+      setLikingId(null)
+    }
   }
 
   const canSubmit = !submitting && text.trim().length > 0 && text.length <= MAX
