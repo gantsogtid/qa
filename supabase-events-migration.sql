@@ -20,6 +20,15 @@ create index if not exists attendance_event_id_idx on attendance(event_id);
 create index if not exists questions_event_id_idx on questions(event_id);
 create index if not exists events_is_active_idx on events(is_active);
 
+with ranked_active_events as (
+  select id, row_number() over (order by created_at desc) as rn
+  from events
+  where is_active = true
+)
+update events
+set is_active = false, archived_at = coalesce(archived_at, now())
+where id in (select id from ranked_active_events where rn > 1);
+
 create unique index if not exists events_single_active_idx
 on events (is_active)
 where is_active = true;

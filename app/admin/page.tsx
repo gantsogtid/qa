@@ -116,17 +116,28 @@ export default function AdminPage() {
     if (!title?.trim()) return
     const eventDateValue = prompt('Огноо / цаг', dateInput || '')
     setSaving('new-event')
-    await supabase.from('events').update({ is_active: false, archived_at: new Date().toISOString() }).eq('is_active', true)
-    const { error } = await supabase.from('events').insert({
+    const archivedAt = new Date().toISOString()
+    const archiveRes = await supabase.from('events').update({ is_active: false, archived_at: archivedAt }).eq('is_active', true)
+    if (archiveRes.error) {
+      console.error('archiveActiveEvents:', archiveRes.error.message)
+      setSaved('err-new-event')
+      setSaving(null)
+      setTimeout(() => setSaved(null), 2500)
+      return
+    }
+
+    const { data: created, error } = await supabase.from('events').insert({
       title: title.trim(),
       event_date: eventDateValue?.trim() || '',
       program_image_url: '',
       is_active: true,
-    })
+    }).select('*').single()
     if (error) {
       console.error('createNewEvent:', error.message)
       setSaved('err-new-event')
     } else {
+      setActiveEvent(created)
+      setSelectedEventId(created.id)
       setSaved('new-event')
       setTab('settings')
       setCsvResult(null)
@@ -144,12 +155,22 @@ export default function AdminPage() {
     if (!confirm(`"${viewedEvent.title}" сэдвийг идэвхтэй болгох уу? Одоогийн идэвхтэй сэдэв архивлагдана.`)) return
 
     setSaving('activate-event')
-    await supabase.from('events').update({ is_active: false, archived_at: new Date().toISOString() }).eq('is_active', true)
+    const archivedAt = new Date().toISOString()
+    const archiveRes = await supabase.from('events').update({ is_active: false, archived_at: archivedAt }).eq('is_active', true)
+    if (archiveRes.error) {
+      console.error('archiveActiveEvents:', archiveRes.error.message)
+      setSaved('err-activate-event')
+      setSaving(null)
+      setTimeout(() => setSaved(null), 2500)
+      return
+    }
     const { error } = await supabase.from('events').update({ is_active: true, archived_at: null }).eq('id', viewedEvent.id)
     if (error) {
       console.error('activateSelectedEvent:', error.message)
       setSaved('err-activate-event')
     } else {
+      setActiveEvent({ ...viewedEvent, is_active: true, archived_at: null })
+      setSelectedEventId(viewedEvent.id)
       setSaved('activate-event')
       await fetchSettings()
       await fetchList()
