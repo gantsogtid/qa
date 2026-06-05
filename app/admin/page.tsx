@@ -15,6 +15,7 @@ export default function AdminPage() {
   const [questions, setQuestions] = useState<Question[]>([])
   const [activeEvent, setActiveEvent] = useState<EventTopic | null>(null)
   const [events, setEvents] = useState<EventTopic[]>([])
+  const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [name, setName] = useState('')
   const [adding, setAdding] = useState(false)
   const [search, setSearch] = useState('')
@@ -36,34 +37,38 @@ export default function AdminPage() {
   const fetchList = useCallback(async () => {
     const event = await getActiveEvent()
     setActiveEvent(event)
-    if (!event) {
+    const eventId = selectedEventId || event?.id
+    if (!eventId) {
       setList([])
       return
     }
-    const { data } = await supabase.from('attendance').select('*').eq('event_id', event.id).order('created_at', { ascending: true })
+    const { data } = await supabase.from('attendance').select('*').eq('event_id', eventId).order('created_at', { ascending: true })
     setList(data || [])
-  }, [])
+  }, [selectedEventId])
 
   const fetchQuestions = useCallback(async () => {
     const event = await getActiveEvent()
     setActiveEvent(event)
-    if (!event) {
+    const eventId = selectedEventId || event?.id
+    if (!eventId) {
       setQuestions([])
       return
     }
-    const { data } = await supabase.from('questions').select('*').eq('event_id', event.id).order('likes', { ascending: false })
+    const { data } = await supabase.from('questions').select('*').eq('event_id', eventId).order('likes', { ascending: false })
     setQuestions(data || [])
-  }, [])
+  }, [selectedEventId])
 
   const fetchSettings = useCallback(async () => {
     const event = await getActiveEvent()
     const allEvents = await getEvents()
     setActiveEvent(event)
     setEvents(allEvents)
-    if (event) {
-      setImageUrl(event.program_image_url || ''); setImageInput(event.program_image_url || '')
-      setEventTitle(event.title || 'Арга хэмжээ'); setTitleInput(event.title || 'Арга хэмжээ')
-      setEventDate(event.event_date || ''); setDateInput(event.event_date || '')
+    const chosen = allEvents.find(e => e.id === selectedEventId) || event || allEvents[0]
+    if (!selectedEventId && chosen) setSelectedEventId(chosen.id)
+    if (chosen) {
+      setImageUrl(chosen.program_image_url || ''); setImageInput(chosen.program_image_url || '')
+      setEventTitle(chosen.title || 'Арга хэмжээ'); setTitleInput(chosen.title || 'Арга хэмжээ')
+      setEventDate(chosen.event_date || ''); setDateInput(chosen.event_date || '')
       return
     }
 
@@ -75,14 +80,14 @@ export default function AdminPage() {
     setImageUrl(img); setImageInput(img)
     setEventTitle(title || 'Арга хэмжээ'); setTitleInput(title || 'Арга хэмжээ')
     setEventDate(date); setDateInput(date)
-  }, [])
+  }, [selectedEventId])
 
   useEffect(() => {
     if (authed) { fetchList(); fetchQuestions(); fetchSettings() }
   }, [authed, fetchList, fetchQuestions, fetchSettings])
 
   async function saveSetting(key: string, value: string, id: string) {
-    if (!activeEvent) {
+    if (!activeEvent || viewingArchived) {
       console.error('setSetting:', key, 'Active event not found')
       setSaved(`err-${id}`)
       setTimeout(() => setSaved(null), 3000)
@@ -300,16 +305,24 @@ export default function AdminPage() {
     URL.revokeObjectURL(url)
   }
 
-  const filtered = list.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+  const filtered = list.filter(p => {
+    const q = search.toLowerCase()
+    return [p.name, p.first_name, p.last_name, p.phone, p.hospital, p.email, p.position_title]
+      .some(v => String(v || '').toLowerCase().includes(q))
+  })
   const totalIn  = list.filter(p => p.checked_in).length
+  const viewedEvent = events.find(e => e.id === selectedEventId) || activeEvent
+  const viewingArchived = !!viewedEvent && !!activeEvent && viewedEvent.id !== activeEvent.id
   const ADMIN_PW = process.env.NEXT_PUBLIC_ADMIN_PW || '@ssw0rd2o24'
+  // DEBUG: remove after verify
+  if (typeof window !== 'undefined') console.log('[DEBUG] ADMIN_PW:', ADMIN_PW, '| pw:', pw, '| env:', process.env.NEXT_PUBLIC_ADMIN_PW)
 
   const SaveBtn = ({ id, onClick }: { id: string; onClick: () => void }) => (
-    <button onClick={onClick} disabled={saving === id}
+    <button onClick={onClick} disabled={saving === id || viewingArchived}
       style={{
         padding: '0 18px', flexShrink: 0, borderRadius: 12, fontSize: 13, fontWeight: 600, height: 44,
-        background: saved === `err-${id}` ? '#dc2626' : saved === id ? '#16a34a' : GRAD,
-        color: '#fff',
+        background: viewingArchived ? '#e2e8f0' : saved === `err-${id}` ? '#dc2626' : saved === id ? '#16a34a' : GRAD,
+        color: viewingArchived ? '#94a3b8' : '#fff',
       }}>
       {saved === `err-${id}` ? '⚠ Алдаа' : saved === id ? '✓' : saving === id ? '...' : 'Хадгалах'}
     </button>
@@ -373,6 +386,21 @@ export default function AdminPage() {
               <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>Идэвхтэй сэдэв</p>
               <p style={{ fontSize: 18, fontWeight: 800, color: P, marginBottom: 4 }}>{activeEvent?.title || 'Сэдэв үүсгээгүй байна'}</p>
               {activeEvent?.event_date && <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>{activeEvent.event_date}</p>}
+              {events.length > 0 && (
+                <select value={selectedEventId} onChange={e => { setSelectedEventId(e.target.value); setSearch('') }}
+                  style={{ width: '100%', marginBottom: 10, padding: '11px 12px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, color: '#1e293b', background: '#fff' }}>
+                  {events.map(e => (
+                    <option key={e.id} value={e.id}>
+                      {e.is_active ? 'Идэвхтэй' : 'Архив'} - {e.title}{e.event_date ? ` (${e.event_date})` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {viewingArchived && (
+                <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                  Архивын сэдэв харж байна. Ирц болон асуулт tab-аас тухайн сэдвийн хүмүүсийг харна.
+                </p>
+              )}
               <button onClick={createNewEvent} disabled={saving === 'new-event'}
                 style={{ width: '100%', padding: '12px', background: GRAD, color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700 }}>
                 {saving === 'new-event' ? 'Үүсгэж байна...' : 'Шинэ сэдэв үүсгэх'}
