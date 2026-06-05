@@ -184,6 +184,30 @@ export default function AdminPage() {
     setTimeout(() => setSaved(null), 2500)
   }
 
+  async function deactivateActiveEvent() {
+    if (!activeEvent || viewingArchived) return
+    if (!confirm(`"${activeEvent.title}" сэдвийг идэвхгүй болгох уу? Идэвхтэй сэдэвгүй үед web дээр шинэ ирц/асуулт авахгүй.`)) return
+
+    setSaving('deactivate-event')
+    const { error } = await supabase
+      .from('events')
+      .update({ is_active: false, archived_at: new Date().toISOString() })
+      .eq('id', activeEvent.id)
+
+    if (error) {
+      console.error('deactivateActiveEvent:', error.message)
+      setSaved('err-deactivate-event')
+    } else {
+      setActiveEvent(null)
+      setSaved('deactivate-event')
+      await fetchSettings()
+      await fetchList()
+      await fetchQuestions()
+    }
+    setSaving(null)
+    setTimeout(() => setSaved(null), 2500)
+  }
+
   async function addPerson() {
     if (!name.trim()) return
     if (!activeEvent) return
@@ -357,7 +381,7 @@ export default function AdminPage() {
   })
   const totalIn  = list.filter(p => p.checked_in).length
   const viewedEvent = events.find(e => e.id === selectedEventId) || activeEvent
-  const viewingArchived = !!viewedEvent && !!activeEvent && viewedEvent.id !== activeEvent.id
+  const viewingArchived = !!viewedEvent && !viewedEvent.is_active
   const ADMIN_PW = process.env.NEXT_PUBLIC_ADMIN_PW || '@ssw0rd2o24'
 
   const SaveBtn = ({ id, onClick }: { id: string; onClick: () => void }) => (
@@ -429,6 +453,16 @@ export default function AdminPage() {
               <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>Идэвхтэй сэдэв</p>
               <p style={{ fontSize: 18, fontWeight: 800, color: P, marginBottom: 4 }}>{activeEvent?.title || 'Сэдэв үүсгээгүй байна'}</p>
               {activeEvent?.event_date && <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>{activeEvent.event_date}</p>}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                <div style={{ border: '1px solid #d4f0f0', background: '#e6f6f6', borderRadius: 10, padding: '10px 12px' }}>
+                  <p style={{ fontSize: 11, fontWeight: 800, color: P, marginBottom: 3 }}>WEB ДЭЭР ГАРАХ</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{activeEvent?.title || 'Идэвхтэй сэдэв алга'}</p>
+                </div>
+                <div style={{ border: `1px solid ${viewingArchived ? '#fecaca' : '#bbf7d0'}`, background: viewingArchived ? '#fef2f2' : '#f0fdf4', borderRadius: 10, padding: '10px 12px' }}>
+                  <p style={{ fontSize: 11, fontWeight: 800, color: viewingArchived ? '#dc2626' : '#16a34a', marginBottom: 3 }}>ОДОО ҮЗЭЖ БАЙГАА</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{viewedEvent?.title || 'Сонгоогүй'}</p>
+                </div>
+              </div>
               {events.length > 0 && (
                 <select value={selectedEventId} onChange={e => { setSelectedEventId(e.target.value); setSearch('') }}
                   style={{ width: '100%', marginBottom: 10, padding: '11px 12px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, color: '#1e293b', background: '#fff' }}>
@@ -448,6 +482,12 @@ export default function AdminPage() {
                 <button onClick={activateSelectedEvent} disabled={saving === 'activate-event'}
                   style={{ width: '100%', padding: '12px', background: '#16a34a', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
                   {saving === 'activate-event' ? 'Идэвхжүүлж байна...' : 'Энэ сэдвийг идэвхтэй болгох'}
+                </button>
+              )}
+              {!viewingArchived && activeEvent && (
+                <button onClick={deactivateActiveEvent} disabled={saving === 'deactivate-event'}
+                  style={{ width: '100%', padding: '12px', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: 12, fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
+                  {saving === 'deactivate-event' ? 'Идэвхгүй болгож байна...' : 'Энэ сэдвийг идэвхгүй болгох'}
                 </button>
               )}
               <button onClick={createNewEvent} disabled={saving === 'new-event'}
