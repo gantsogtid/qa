@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useState, useCallback, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { supabase, type AttendanceRow } from '@/lib/supabase'
+import { supabase, getActiveEvent, type AttendanceRow, type EventTopic } from '@/lib/supabase'
 
 const P    = '#009194'
 const GRAD = `linear-gradient(135deg, #009194, #007072)`
@@ -21,6 +21,7 @@ export default function CheckinPage() {
   const [loading, setLoading] = useState(false)
   const [notFound, setNotFound] = useState(false)
   const [origin, setOrigin]   = useState('')
+  const [activeEvent, setActiveEvent] = useState<EventTopic | null>(null)
 
   // Modal — confirm / edit before checkin
   const [modal, setModal]     = useState<AttendanceRow | null>(null)
@@ -32,7 +33,10 @@ export default function CheckinPage() {
   const [regForm, setRegForm] = useState({ last_name: '', first_name: '', phone: '', hospital: '', position_title: '', email: '' })
   const [registering, setRegistering] = useState(false)
 
-  useEffect(() => { setOrigin(window.location.origin) }, [])
+  useEffect(() => {
+    setOrigin(window.location.origin)
+    getActiveEvent().then(setActiveEvent)
+  }, [])
 
   /* ── Search ── */
   const search = useCallback(async () => {
@@ -40,7 +44,13 @@ export default function CheckinPage() {
     setLoading(true)
     setNotFound(false)
 
-    const { data: all, error } = await supabase.from('attendance').select('*')
+    if (!activeEvent) {
+      setLoading(false)
+      setNotFound(true)
+      return
+    }
+
+    const { data: all, error } = await supabase.from('attendance').select('*').eq('event_id', activeEvent.id)
     setLoading(false)
 
     if (error || !all) { setNotFound(true); return }
@@ -65,7 +75,7 @@ export default function CheckinPage() {
     } else {
       setResults(matched.slice(0, 15)); setStep('result')
     }
-  }, [query])
+  }, [query, activeEvent])
 
   /* ── Open modal ── */
   function openModal(person: AttendanceRow) {
@@ -96,9 +106,10 @@ export default function CheckinPage() {
   /* ── Self-register ── */
   async function register() {
     if (!regForm.first_name.trim() && !regForm.last_name.trim()) return
+    if (!activeEvent) return
     setRegistering(true)
     const name = [regForm.first_name.trim(), regForm.last_name.trim()].filter(Boolean).join(' ')
-    const { data } = await supabase.from('attendance').insert({ ...regForm, name, checked_in: true }).select().single()
+    const { data } = await supabase.from('attendance').insert({ ...regForm, name, checked_in: true, event_id: activeEvent.id }).select().single()
     setDone(data)
     setRegistering(false)
     setStep('done')

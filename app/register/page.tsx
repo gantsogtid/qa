@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
-import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useEffect, useState } from 'react'
+import { supabase, getActiveEvent, type EventTopic } from '@/lib/supabase'
 
 const P    = '#009194'
 const GRAD = `linear-gradient(135deg, #009194, #007072)`
@@ -22,16 +22,25 @@ export default function RegisterPage() {
   const [saving, setSaving] = useState(false)
   const [done, setDone]     = useState(false)
   const [error, setError]   = useState<string | null>(null)
+  const [activeEvent, setActiveEvent] = useState<EventTopic | null>(null)
+
+  useEffect(() => {
+    getActiveEvent().then(setActiveEvent)
+  }, [])
 
   const canSubmit = form.last_name.trim() && form.first_name.trim()
 
   async function submit() {
     if (!canSubmit) return
+    if (!activeEvent) {
+      setError('Идэвхтэй сэдэв олдсонгүй. Админ хэсгээс шинэ сэдэв үүсгэнэ үү.')
+      return
+    }
     setSaving(true)
     setError(null)
     const name = [form.first_name.trim(), form.last_name.trim()].filter(Boolean).join(' ')
     const { error: err } = await supabase.from('attendance').insert({
-      ...form, name, checked_in: true,
+      ...form, name, checked_in: true, event_id: activeEvent.id,
     })
     if (err) {
       setError(err.message)

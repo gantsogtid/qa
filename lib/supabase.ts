@@ -9,11 +9,13 @@ export type Question = {
   id: string
   text: string
   likes: number
+  event_id?: string
   created_at: string
 }
 
 export type AttendanceRow = {
   id: string
+  event_id?: string
   name: string
   hospital: string
   last_name: string
@@ -24,6 +26,47 @@ export type AttendanceRow = {
   registered: boolean
   checked_in: boolean
   created_at: string
+}
+
+export type EventTopic = {
+  id: string
+  title: string
+  event_date: string
+  program_image_url: string
+  is_active: boolean
+  created_at: string
+  archived_at: string | null
+}
+
+export async function getActiveEvent(): Promise<EventTopic | null> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.error('getActiveEvent:', error.message)
+    return null
+  }
+
+  return data
+}
+
+export async function getEvents(): Promise<EventTopic[]> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('getEvents:', error.message)
+    return []
+  }
+
+  return data || []
 }
 
 export async function getSetting(key: string): Promise<string> {

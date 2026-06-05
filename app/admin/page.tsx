@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
-import { supabase, getSetting, setSetting, parseCSV, type AttendanceRow, type Question } from '@/lib/supabase'
+import { supabase, getActiveEvent, getEvents, getSetting, parseCSV, type AttendanceRow, type EventTopic, type Question } from '@/lib/supabase'
 
 const P  = '#009194'
 const PD = '#007072'
@@ -13,6 +13,8 @@ export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('settings')
   const [list, setList] = useState<AttendanceRow[]>([])
   const [questions, setQuestions] = useState<Question[]>([])
+  const [activeEvent, setActiveEvent] = useState<EventTopic | null>(null)
+  const [events, setEvents] = useState<EventTopic[]>([])
   const [name, setName] = useState('')
   const [adding, setAdding] = useState(false)
   const [search, setSearch] = useState('')
@@ -32,16 +34,39 @@ export default function AdminPage() {
   const [csvResult, setCsvResult]   = useState<string | null>(null)
 
   const fetchList = useCallback(async () => {
-    const { data } = await supabase.from('attendance').select('*').order('created_at', { ascending: true })
+    const event = await getActiveEvent()
+    setActiveEvent(event)
+    if (!event) {
+      setList([])
+      return
+    }
+    const { data } = await supabase.from('attendance').select('*').eq('event_id', event.id).order('created_at', { ascending: true })
     setList(data || [])
   }, [])
 
   const fetchQuestions = useCallback(async () => {
-    const { data } = await supabase.from('questions').select('*').order('likes', { ascending: false })
+    const event = await getActiveEvent()
+    setActiveEvent(event)
+    if (!event) {
+      setQuestions([])
+      return
+    }
+    const { data } = await supabase.from('questions').select('*').eq('event_id', event.id).order('likes', { ascending: false })
     setQuestions(data || [])
   }, [])
 
   const fetchSettings = useCallback(async () => {
+    const event = await getActiveEvent()
+    const allEvents = await getEvents()
+    setActiveEvent(event)
+    setEvents(allEvents)
+    if (event) {
+      setImageUrl(event.program_image_url || ''); setImageInput(event.program_image_url || '')
+      setEventTitle(event.title || 'Арга хэмжээ'); setTitleInput(event.title || 'Арга хэмжээ')
+      setEventDate(event.event_date || ''); setDateInput(event.event_date || '')
+      return
+    }
+
     const [img, title, date] = await Promise.all([
       getSetting('program_image_url'),
       getSetting('event_title'),
@@ -57,8 +82,17 @@ export default function AdminPage() {
   }, [authed, fetchList, fetchQuestions, fetchSettings])
 
   async function saveSetting(key: string, value: string, id: string) {
+    if (!activeEvent) {
+      console.error('setSetting:', key, 'Active event not found')
+      setSaved(`err-${id}`)
+      setTimeout(() => setSaved(null), 3000)
+      return
+    }
+
     setSaving(id)
-    const { error } = await setSetting(key, value)
+    const column = key === 'event_title' ? 'title' : key === 'event_date' ? 'event_date' : 'program_image_url'
+    const res = await supabase.from('events').update({ [column]: value }).eq('id', activeEvent.id)
+    const error = res.error?.message ?? null
     if (error) {
       console.error('setSetting:', key, error)
       setSaving(null); setSaved(`err-${id}`); setTimeout(() => setSaved(null), 3000); return
@@ -68,13 +102,43 @@ export default function AdminPage() {
     if (key === 'event_date') { setEventDate(value) }
     setSaving(null)
     setSaved(id)
+    await fetchSettings()
     setTimeout(() => setSaved(null), 2000)
+  }
+
+  async function createNewEvent() {
+    const title = prompt('Шинэ сэдвийн нэр', titleInput || 'Арга хэмжээ')
+    if (!title?.trim()) return
+    const eventDateValue = prompt('Огноо / цаг', dateInput || '')
+    setSaving('new-event')
+    await supabase.from('events').update({ is_active: false, archived_at: new Date().toISOString() }).eq('is_active', true)
+    const { error } = await supabase.from('events').insert({
+      title: title.trim(),
+      event_date: eventDateValue?.trim() || '',
+      program_image_url: '',
+      is_active: true,
+    })
+    if (error) {
+      console.error('createNewEvent:', error.message)
+      setSaved('err-new-event')
+    } else {
+      setSaved('new-event')
+      setTab('settings')
+      setCsvResult(null)
+      setSearch('')
+      await fetchSettings()
+      await fetchList()
+      await fetchQuestions()
+    }
+    setSaving(null)
+    setTimeout(() => setSaved(null), 2500)
   }
 
   async function addPerson() {
     if (!name.trim()) return
+    if (!activeEvent) return
     setAdding(true)
-    await supabase.from('attendance').insert({ name: name.trim() })
+    await supabase.from('attendance').insert({ name: name.trim(), event_id: activeEvent.id })
     setName('')
     await fetchList()
     setAdding(false)
@@ -100,9 +164,8 @@ export default function AdminPage() {
 
   async function deleteAllQuestions() {
     if (!confirm(`Нийт ${questions.length} асуултыг бүгдийг устгах уу?`)) return
-    const { data: qs } = await supabase.from('questions').select('id')
-    if (qs && qs.length > 0) {
-      const ids = qs.map((r: any) => r.id)
+    if (questions.length > 0) {
+      const ids = questions.map(q => q.id)
       await supabase.from('question_likes').delete().in('question_id', ids)
       for (let i = 0; i < ids.length; i += 100) {
         await supabase.from('questions').delete().in('id', ids.slice(i, i + 100))
@@ -114,6 +177,11 @@ export default function AdminPage() {
   async function importCSV(file: File) {
     setCsvImporting(true)
     setCsvResult(null)
+    if (!activeEvent) {
+      setCsvResult('error:Идэвхтэй сэдэв олдсонгүй')
+      setCsvImporting(false)
+      return
+    }
 
     let text = await file.text()
     // BOM устгах
@@ -163,6 +231,7 @@ export default function AdminPage() {
         phone:          col(ci.phone,          6, cols),
         name:           `${first} ${last}`.trim(),
         checked_in:     false,
+        event_id:        activeEvent.id,
       }
     }).filter(r => r.first_name || r.last_name)
 
@@ -184,6 +253,51 @@ export default function AdminPage() {
       await fetchList()
     }
     setCsvImporting(false)
+  }
+
+  function downloadAttendanceCSV() {
+    const headers = [
+      '№',
+      'Эмнэлэг/Байгууллага',
+      'Овог',
+      'Нэр',
+      'Овог нэр',
+      'Албан тушаал',
+      'И-мэйл',
+      'Утас',
+      'Ирсэн эсэх',
+      'Бүртгэсэн огноо',
+    ]
+
+    const escapeCSV = (value: unknown) => {
+      const s = String(value ?? '')
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+
+    const rows = list.map((p, i) => [
+      i + 1,
+      p.hospital,
+      p.last_name,
+      p.first_name,
+      p.first_name || p.last_name ? `${p.last_name || ''} ${p.first_name || ''}`.trim() : p.name,
+      p.position_title,
+      p.email,
+      p.phone,
+      p.checked_in ? 'Ирсэн' : 'Ирээгүй',
+      p.created_at ? new Date(p.created_at).toLocaleString('mn-MN') : '',
+    ])
+
+    const csv = [headers, ...rows].map(row => row.map(escapeCSV).join(',')).join('\r\n')
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const stamp = new Date().toISOString().slice(0, 10)
+    a.href = url
+    a.download = `niit-irts-${stamp}.csv`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
   }
 
   const filtered = list.filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
@@ -255,6 +369,21 @@ export default function AdminPage() {
         {tab === 'settings' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
+            <div style={{ background: '#fff', borderRadius: 16, padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>Идэвхтэй сэдэв</p>
+              <p style={{ fontSize: 18, fontWeight: 800, color: P, marginBottom: 4 }}>{activeEvent?.title || 'Сэдэв үүсгээгүй байна'}</p>
+              {activeEvent?.event_date && <p style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>{activeEvent.event_date}</p>}
+              <button onClick={createNewEvent} disabled={saving === 'new-event'}
+                style={{ width: '100%', padding: '12px', background: GRAD, color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700 }}>
+                {saving === 'new-event' ? 'Үүсгэж байна...' : 'Шинэ сэдэв үүсгэх'}
+              </button>
+              {events.length > 0 && (
+                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 10 }}>
+                  Архив: {events.filter(e => !e.is_active).length} сэдэв хадгалагдсан
+                </p>
+              )}
+            </div>
+
             {/* Event title */}
             <div style={{ background: '#fff', borderRadius: 16, padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
               <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>📝 Арга хэмжээний нэр</p>
@@ -316,6 +445,16 @@ export default function AdminPage() {
               ))}
             </div>
 
+            <button onClick={downloadAttendanceCSV} disabled={list.length === 0}
+              style={{
+                width: '100%', padding: '12px', borderRadius: 12, fontSize: 14, fontWeight: 700,
+                background: list.length === 0 ? '#e2e8f0' : GRAD,
+                color: list.length === 0 ? '#94a3b8' : '#fff',
+                cursor: list.length === 0 ? 'default' : 'pointer',
+              }}>
+              Нийт ирц CSV татах
+            </button>
+
             {/* CSV Import */}
             <div style={{ background: '#fff', borderRadius: 16, padding: '1rem 1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -323,9 +462,8 @@ export default function AdminPage() {
                 <button
                   onClick={async () => {
                     if (!confirm(`Нийт ${list.length} бүртгэлийг бүгдийг устгах уу?`)) return
-                    const { data: rows } = await supabase.from('attendance').select('id')
-                    if (rows && rows.length > 0) {
-                      const ids = rows.map((r: any) => r.id)
+                    if (list.length > 0) {
+                      const ids = list.map(r => r.id)
                       // Batch 100-аар устгах
                       for (let i = 0; i < ids.length; i += 100) {
                         await supabase.from('attendance').delete().in('id', ids.slice(i, i + 100))

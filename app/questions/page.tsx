@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
-import { supabase, type Question } from '@/lib/supabase'
+import { supabase, getActiveEvent, type EventTopic, type Question } from '@/lib/supabase'
 
 const P  = '#009194'
 const PD = '#007072'
@@ -17,6 +17,7 @@ function getToken(): string {
 
 export default function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([])
+  const [activeEvent, setActiveEvent] = useState<EventTopic | null>(null)
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(true)
@@ -26,9 +27,18 @@ export default function QuestionsPage() {
   const [success, setSuccess] = useState(false)
 
   const fetchAll = useCallback(async () => {
+    const event = await getActiveEvent()
+    setActiveEvent(event)
+    if (!event) {
+      setQuestions([])
+      setLikedIds(new Set())
+      setLoading(false)
+      return
+    }
+
     const token = getToken()
     const [{ data: qs }, { data: ls }] = await Promise.all([
-      supabase.from('questions').select('*').order('likes', { ascending: false }).order('created_at', { ascending: true }),
+      supabase.from('questions').select('*').eq('event_id', event.id).order('likes', { ascending: false }).order('created_at', { ascending: true }),
       supabase.from('question_likes').select('question_id').eq('user_token', token),
     ])
     setQuestions(qs || [])
@@ -45,10 +55,10 @@ export default function QuestionsPage() {
   }, [fetchAll])
 
   async function submit() {
-    if (!text.trim() || text.length > MAX) return
+    if (!activeEvent || !text.trim() || text.length > MAX) return
     setSubmitting(true)
     setError(null)
-    const { error: err } = await supabase.from('questions').insert({ text: text.trim() })
+    const { error: err } = await supabase.from('questions').insert({ text: text.trim(), event_id: activeEvent.id })
     if (err) {
       setError(err.message)
     } else {
@@ -76,7 +86,7 @@ export default function QuestionsPage() {
     }
   }
 
-  const canSubmit = !submitting && text.trim().length > 0 && text.length <= MAX
+  const canSubmit = !!activeEvent && !submitting && text.trim().length > 0 && text.length <= MAX
   const remaining = MAX - text.length
 
   return (

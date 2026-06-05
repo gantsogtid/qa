@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { supabase, getSetting, type Question } from '@/lib/supabase'
+import { supabase, getActiveEvent, getSetting, type EventTopic, type Question } from '@/lib/supabase'
 
 const P  = '#009194'
 const PD = '#007072'
@@ -28,45 +28,70 @@ export default function DisplayPage() {
   const [totalReg, setTotalReg]         = useState(0)
   const [totalIn,  setTotalIn]          = useState(0)
   const [origin, setOrigin]             = useState('')
+  const [activeEvent, setActiveEvent]   = useState<EventTopic | null>(null)
   const [programImage, setProgramImage] = useState(process.env.NEXT_PUBLIC_PROGRAM_IMAGE_URL || '')
   const [eventTitle, setEventTitle]     = useState(process.env.NEXT_PUBLIC_EVENT_TITLE || 'Арга хэмжээ')
   const [eventDate,  setEventDate]      = useState(process.env.NEXT_PUBLIC_EVENT_DATE  || '')
 
   const fetchQuestions = useCallback(async () => {
+    if (!activeEvent) {
+      setQuestions([])
+      return
+    }
     const { data } = await supabase
       .from('questions').select('*')
+      .eq('event_id', activeEvent.id)
       .order('likes', { ascending: false })
       .order('created_at', { ascending: true })
     setQuestions(data || [])
-  }, [])
+  }, [activeEvent])
 
   const fetchAttendance = useCallback(async () => {
-    const { data } = await supabase.from('attendance').select('checked_in')
+    if (!activeEvent) {
+      setTotalReg(0)
+      setTotalIn(0)
+      return
+    }
+    const { data } = await supabase.from('attendance').select('checked_in').eq('event_id', activeEvent.id)
     setTotalReg(data?.length || 0)
     setTotalIn(data?.filter(r => r.checked_in).length || 0)
-  }, [])
+  }, [activeEvent])
 
   useEffect(() => {
     setOrigin(window.location.origin)
+    getActiveEvent().then(event => {
+      setActiveEvent(event)
+      if (event) {
+        setProgramImage(event.program_image_url || '')
+        setEventTitle(event.title || 'Арга хэмжээ')
+        setEventDate(event.event_date || '')
+      }
+    })
+  }, [])
+
+  useEffect(() => {
     fetchQuestions()
     fetchAttendance()
-    Promise.all([
-      getSetting('program_image_url'),
-      getSetting('event_title'),
-      getSetting('event_date'),
-    ]).then(([img, title, date]) => {
-      if (img)   setProgramImage(img)
-      if (title) setEventTitle(title)
-      if (date)  setEventDate(date)
-    })
+    if (!activeEvent) {
+      Promise.all([
+        getSetting('program_image_url'),
+        getSetting('event_title'),
+        getSetting('event_date'),
+      ]).then(([img, title, date]) => {
+        if (img)   setProgramImage(img)
+        if (title) setEventTitle(title)
+        if (date)  setEventDate(date)
+      })
+    }
     const ch = supabase.channel('display-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, fetchQuestions)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, fetchAttendance)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => window.location.reload())
       .subscribe()
     const pollTimer   = setInterval(() => { fetchQuestions(); fetchAttendance() }, 30_000)
     const reloadTimer = setInterval(() => window.location.reload(), 10 * 60_000)
     return () => { supabase.removeChannel(ch); clearInterval(pollTimer); clearInterval(reloadTimer) }
-  }, [fetchQuestions, fetchAttendance])
+  }, [activeEvent, fetchQuestions, fetchAttendance])
 
   const qrUrl      = `${origin}/questions`
   const topFive    = questions.slice(0, 5)
