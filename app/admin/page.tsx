@@ -16,8 +16,6 @@ export default function AdminPage() {
   const [activeEvent, setActiveEvent] = useState<EventTopic | null>(null)
   const [events, setEvents] = useState<EventTopic[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string>('')
-  const [name, setName] = useState('')
-  const [adding, setAdding] = useState(false)
   const [search, setSearch] = useState('')
   const [pw, setPw] = useState('')
   const [authed, setAuthed] = useState(false)
@@ -35,28 +33,28 @@ export default function AdminPage() {
   const [csvResult, setCsvResult]   = useState<string | null>(null)
 
   const fetchList = useCallback(async () => {
-    const event = await getActiveEvent()
-    setActiveEvent(event)
-    const eventId = selectedEventId || event?.id
-    if (!eventId) {
-      setList([])
-      return
-    }
-    const { data } = await supabase.from('attendance').select('*').eq('event_id', eventId).order('created_at', { ascending: true })
+    if (!selectedEventId) { setList([]); return }
+    const { data } = await supabase.from('attendance').select('*').eq('event_id', selectedEventId).order('created_at', { ascending: true })
     setList(data || [])
   }, [selectedEventId])
 
   const fetchQuestions = useCallback(async () => {
-    const event = await getActiveEvent()
-    setActiveEvent(event)
-    const eventId = selectedEventId || event?.id
-    if (!eventId) {
-      setQuestions([])
-      return
-    }
-    const { data } = await supabase.from('questions').select('*').eq('event_id', eventId).order('likes', { ascending: false })
+    if (!selectedEventId) { setQuestions([]); return }
+    const { data } = await supabase.from('questions').select('*').eq('event_id', selectedEventId).order('likes', { ascending: false })
     setQuestions(data || [])
   }, [selectedEventId])
+
+  function applySelectedEvent(event: EventTopic | null) {
+    if (!event) {
+      setImageUrl(''); setImageInput('')
+      setEventTitle('Арга хэмжээ'); setTitleInput('Арга хэмжээ')
+      setEventDate(''); setDateInput('')
+      return
+    }
+    setImageUrl(event.program_image_url || ''); setImageInput(event.program_image_url || '')
+    setEventTitle(event.title || 'Арга хэмжээ'); setTitleInput(event.title || 'Арга хэмжээ')
+    setEventDate(event.event_date || ''); setDateInput(event.event_date || '')
+  }
 
   const fetchSettings = useCallback(async () => {
     const event = await getActiveEvent()
@@ -66,9 +64,7 @@ export default function AdminPage() {
     const chosen = allEvents.find(e => e.id === selectedEventId) || event || allEvents[0]
     if (!selectedEventId && chosen) setSelectedEventId(chosen.id)
     if (chosen) {
-      setImageUrl(chosen.program_image_url || ''); setImageInput(chosen.program_image_url || '')
-      setEventTitle(chosen.title || 'Арга хэмжээ'); setTitleInput(chosen.title || 'Арга хэмжээ')
-      setEventDate(chosen.event_date || ''); setDateInput(chosen.event_date || '')
+      applySelectedEvent(chosen)
       return
     }
 
@@ -206,16 +202,6 @@ export default function AdminPage() {
     }
     setSaving(null)
     setTimeout(() => setSaved(null), 2500)
-  }
-
-  async function addPerson() {
-    if (!name.trim()) return
-    if (!activeEvent) return
-    setAdding(true)
-    await supabase.from('attendance').insert({ name: name.trim(), event_id: activeEvent.id })
-    setName('')
-    await fetchList()
-    setAdding(false)
   }
 
   async function toggleCheckin(id: string, current: boolean) {
@@ -464,7 +450,13 @@ export default function AdminPage() {
                 </div>
               </div>
               {events.length > 0 && (
-                <select value={selectedEventId} onChange={e => { setSelectedEventId(e.target.value); setSearch('') }}
+                <select value={selectedEventId} onChange={e => {
+                  const eventId = e.target.value
+                  const event = events.find(x => x.id === eventId) || null
+                  setSelectedEventId(eventId)
+                  applySelectedEvent(event)
+                  setSearch('')
+                }}
                   style={{ width: '100%', marginBottom: 10, padding: '11px 12px', borderRadius: 10, border: '1px solid #e2e8f0', fontSize: 13, color: '#1e293b', background: '#fff' }}>
                   {events.map(e => (
                     <option key={e.id} value={e.id}>
