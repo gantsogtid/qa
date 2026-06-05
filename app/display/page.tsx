@@ -33,6 +33,16 @@ export default function DisplayPage() {
   const [eventTitle, setEventTitle]     = useState(process.env.NEXT_PUBLIC_EVENT_TITLE || 'Арга хэмжээ')
   const [eventDate,  setEventDate]      = useState(process.env.NEXT_PUBLIC_EVENT_DATE  || '')
 
+  const refreshActiveEvent = useCallback(async () => {
+    const event = await getActiveEvent()
+    setActiveEvent(event)
+    if (event) {
+      setProgramImage(event.program_image_url || '')
+      setEventTitle(event.title || 'Арга хэмжээ')
+      setEventDate(event.event_date || '')
+    }
+  }, [])
+
   const fetchQuestions = useCallback(async () => {
     if (!activeEvent) {
       setQuestions([])
@@ -86,12 +96,12 @@ export default function DisplayPage() {
     const ch = supabase.channel('display-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions' }, fetchQuestions)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, fetchAttendance)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => window.location.reload())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, refreshActiveEvent)
       .subscribe()
-    const pollTimer   = setInterval(() => { fetchQuestions(); fetchAttendance() }, 30_000)
+    const pollTimer   = setInterval(() => { refreshActiveEvent(); fetchQuestions(); fetchAttendance() }, 30_000)
     const reloadTimer = setInterval(() => window.location.reload(), 10 * 60_000)
     return () => { supabase.removeChannel(ch); clearInterval(pollTimer); clearInterval(reloadTimer) }
-  }, [activeEvent, fetchQuestions, fetchAttendance])
+  }, [activeEvent, fetchQuestions, fetchAttendance, refreshActiveEvent])
 
   const qrUrl      = `${origin}/questions`
   const topFive    = questions.slice(0, 5)

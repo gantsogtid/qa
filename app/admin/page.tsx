@@ -87,7 +87,8 @@ export default function AdminPage() {
   }, [authed, fetchList, fetchQuestions, fetchSettings])
 
   async function saveSetting(key: string, value: string, id: string) {
-    if (!activeEvent || viewingArchived) {
+    const targetEvent = events.find(e => e.id === selectedEventId) || activeEvent
+    if (!targetEvent || !targetEvent.is_active || viewingArchived) {
       console.error('setSetting:', key, 'Active event not found')
       setSaved(`err-${id}`)
       setTimeout(() => setSaved(null), 3000)
@@ -96,7 +97,7 @@ export default function AdminPage() {
 
     setSaving(id)
     const column = key === 'event_title' ? 'title' : key === 'event_date' ? 'event_date' : 'program_image_url'
-    const res = await supabase.from('events').update({ [column]: value }).eq('id', activeEvent.id)
+    const res = await supabase.from('events').update({ [column]: value }).eq('id', targetEvent.id)
     const error = res.error?.message ?? null
     if (error) {
       console.error('setSetting:', key, error)
@@ -105,6 +106,9 @@ export default function AdminPage() {
     if (key === 'program_image_url') { setImageUrl(value) }
     if (key === 'event_title') { setEventTitle(value) }
     if (key === 'event_date') { setEventDate(value) }
+    const updatedEvent = { ...targetEvent, [column]: value }
+    setActiveEvent(updatedEvent)
+    setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e))
     setSaving(null)
     setSaved(id)
     await fetchSettings()
@@ -355,8 +359,6 @@ export default function AdminPage() {
   const viewedEvent = events.find(e => e.id === selectedEventId) || activeEvent
   const viewingArchived = !!viewedEvent && !!activeEvent && viewedEvent.id !== activeEvent.id
   const ADMIN_PW = process.env.NEXT_PUBLIC_ADMIN_PW || '@ssw0rd2o24'
-  // DEBUG: remove after verify
-  if (typeof window !== 'undefined') console.log('[DEBUG] ADMIN_PW:', ADMIN_PW, '| pw:', pw, '| env:', process.env.NEXT_PUBLIC_ADMIN_PW)
 
   const SaveBtn = ({ id, onClick }: { id: string; onClick: () => void }) => (
     <button onClick={onClick} disabled={saving === id || viewingArchived}
