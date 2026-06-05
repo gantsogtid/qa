@@ -20,6 +20,10 @@ create index if not exists attendance_event_id_idx on attendance(event_id);
 create index if not exists questions_event_id_idx on questions(event_id);
 create index if not exists events_is_active_idx on events(is_active);
 
+create unique index if not exists events_single_active_idx
+on events (is_active)
+where is_active = true;
+
 alter table events enable row level security;
 
 drop policy if exists "events public read" on events;

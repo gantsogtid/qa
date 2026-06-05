@@ -139,6 +139,26 @@ export default function AdminPage() {
     setTimeout(() => setSaved(null), 2500)
   }
 
+  async function activateSelectedEvent() {
+    if (!viewedEvent || viewedEvent.is_active) return
+    if (!confirm(`"${viewedEvent.title}" сэдвийг идэвхтэй болгох уу? Одоогийн идэвхтэй сэдэв архивлагдана.`)) return
+
+    setSaving('activate-event')
+    await supabase.from('events').update({ is_active: false, archived_at: new Date().toISOString() }).eq('is_active', true)
+    const { error } = await supabase.from('events').update({ is_active: true, archived_at: null }).eq('id', viewedEvent.id)
+    if (error) {
+      console.error('activateSelectedEvent:', error.message)
+      setSaved('err-activate-event')
+    } else {
+      setSaved('activate-event')
+      await fetchSettings()
+      await fetchList()
+      await fetchQuestions()
+    }
+    setSaving(null)
+    setTimeout(() => setSaved(null), 2500)
+  }
+
   async function addPerson() {
     if (!name.trim()) return
     if (!activeEvent) return
@@ -400,6 +420,12 @@ export default function AdminPage() {
                 <p style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
                   Архивын сэдэв харж байна. Ирц болон асуулт tab-аас тухайн сэдвийн хүмүүсийг харна.
                 </p>
+              )}
+              {viewingArchived && (
+                <button onClick={activateSelectedEvent} disabled={saving === 'activate-event'}
+                  style={{ width: '100%', padding: '12px', background: '#16a34a', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
+                  {saving === 'activate-event' ? 'Идэвхжүүлж байна...' : 'Энэ сэдвийг идэвхтэй болгох'}
+                </button>
               )}
               <button onClick={createNewEvent} disabled={saving === 'new-event'}
                 style={{ width: '100%', padding: '12px', background: GRAD, color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700 }}>
