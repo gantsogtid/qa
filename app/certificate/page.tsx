@@ -29,6 +29,7 @@ export default function CertificatePage() {
   const [matches, setMatches]               = useState<Match[]>([])
   const [selected, setSelected]             = useState<Match | null>(null)
   const [notFound, setNotFound]             = useState(false)
+  const [notCheckedIn, setNotCheckedIn]     = useState<Match | null>(null)
   const [certReady, setCertReady]           = useState(false)
   const [canvasDataUrl, setCanvasDataUrl]   = useState('')
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -40,12 +41,11 @@ export default function CertificatePage() {
     if (!phone.trim()) return
     setLoading(true)
     setMatches([]); setSelected(null)
-    setNotFound(false); setCertReady(false); setCanvasDataUrl('')
+    setNotFound(false); setNotCheckedIn(null); setCertReady(false); setCanvasDataUrl('')
 
     const { data: all } = await supabase
       .from('attendance')
       .select('*')
-      .eq('checked_in', true)
 
     setLoading(false)
     if (!all || all.length === 0) { setNotFound(true); return }
@@ -59,8 +59,17 @@ export default function CertificatePage() {
 
     if (found.length === 0) { setNotFound(true); return }
 
+    // Бүртгэлтэй ч ирээгүй
+    if (found.every(p => !p.checked_in)) {
+      setNotCheckedIn({ ...found[0], eventInfo: null } as Match)
+      return
+    }
+
+    // Зөвхөн ирсэн бүртгэлийг ашиглах
+    const checkedIn = found.filter(p => p.checked_in)
+
     // Event мэдээлэл + cert тохиргоо авах
-    const eventIds = Array.from(new Set(found.map(m => m.event_id).filter(Boolean))) as string[]
+    const eventIds = Array.from(new Set(checkedIn.map(m => m.event_id).filter(Boolean))) as string[]
     let eventsMap: Record<string, EventInfo> = {}
     if (eventIds.length > 0) {
       const { data: evData } = await supabase
@@ -70,7 +79,7 @@ export default function CertificatePage() {
       eventsMap = Object.fromEntries((evData || []).map(e => [e.id, e]))
     }
 
-    const enriched: Match[] = found.map(m => ({
+    const enriched: Match[] = checkedIn.map(m => ({
       ...m,
       eventInfo: m.event_id ? (eventsMap[m.event_id] || null) : null,
     }))
@@ -129,7 +138,7 @@ export default function CertificatePage() {
 
   function reset() {
     setPhone(''); setMatches([]); setSelected(null)
-    setNotFound(false); setCertReady(false); setCanvasDataUrl('')
+    setNotFound(false); setNotCheckedIn(null); setCertReady(false); setCanvasDataUrl('')
   }
 
   return (
@@ -165,6 +174,30 @@ export default function CertificatePage() {
             {loading ? 'Хайж байна...' : 'Гэрчилгээ авах'}
           </button>
         </div>
+
+        {/* Бүртгэлтэй ч ирцгүй */}
+        {notCheckedIn && (
+          <div style={{ background: '#fff', borderRadius: 16, padding: '1.5rem', boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
+            <div style={{ textAlign: 'center', marginBottom: 14 }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>📋</div>
+              <p style={{ fontSize: 16, fontWeight: 800, color: '#1e293b', marginBottom: 10 }}>
+                {displayName(notCheckedIn)}
+              </p>
+            </div>
+            <div style={{ background: '#fffbeb', border: '1.5px solid #fcd34d', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>
+                Та сургалтад бүртгүүлсэн байна
+              </p>
+              <p style={{ fontSize: 13, color: '#78350f', lineHeight: 1.6 }}>
+                Гэхдээ гэрчилгээ авахын тулд ирцийн бүртгэлтэй байх шаардлагатай. Ирц бүртгүүлсэн эсэхээ зохион байгуулагчтай нягтлана уу.
+              </p>
+            </div>
+            <button onClick={reset}
+              style={{ width: '100%', padding: '12px', background: GRAD, color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700 }}>
+              Буцах
+            </button>
+          </div>
+        )}
 
         {/* Not found */}
         {notFound && (
