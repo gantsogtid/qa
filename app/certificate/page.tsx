@@ -79,10 +79,15 @@ export default function CertificatePage() {
       eventsMap = Object.fromEntries((evData || []).map(e => [e.id, e]))
     }
 
-    const enriched: Match[] = checkedIn.map(m => ({
-      ...m,
-      eventInfo: m.event_id ? (eventsMap[m.event_id] || null) : null,
-    }))
+    const enriched: Match[] = checkedIn
+      .map(m => ({ ...m, eventInfo: m.event_id ? (eventsMap[m.event_id] || null) : null }))
+      .filter(m => !!m.eventInfo?.cert_template_url?.trim())  // template-гүй сургалт хасах
+
+    if (enriched.length === 0) {
+      // Ирсэн ч нэг ч сургалтад template тохируулаагүй
+      setSelected({ ...checkedIn[0], eventInfo: null } as Match)
+      return
+    }
 
     setMatches(enriched)
     if (enriched.length === 1) {
@@ -235,12 +240,22 @@ export default function CertificatePage() {
           </div>
         )}
 
-        {/* Загвар тохируулаагүй */}
-        {selected && !certReady && !loading && !selected.eventInfo?.cert_template_url && (
+        {/* Загвар тохируулаагүй — гэрчилгээ олгохгүй */}
+        {selected && !certReady && !loading && matches.length === 0 && !notFound && !notCheckedIn && (
           <div style={{ background: '#fff', borderRadius: 16, padding: '1.5rem', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,.08)' }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>⚙️</div>
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>Гэрчилгээний загвар тохируулаагүй байна</p>
-            <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Тухайн сургалтын гэрчилгээний загварыг админ хэсгээс тохируулна уу</p>
+            <div style={{ fontSize: 40, marginBottom: 10 }}>🎓</div>
+            <p style={{ fontSize: 15, fontWeight: 800, color: '#1e293b', marginBottom: 8 }}>{displayName(selected)}</p>
+            <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: 12, padding: '14px 16px' }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: '#64748b', marginBottom: 4 }}>
+                Таны сургалтад гэрчилгээ олгохгүй байна
+              </p>
+              <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6 }}>
+                Та сургалтанд бүртгүүлсэн боловч тухайн сургалт гэрчилгээ олгодоггүй байна. Дэлгэрэнгүй мэдээллийг зохион байгуулагчаас лавлана уу.
+              </p>
+            </div>
+            <button onClick={reset} style={{ marginTop: 14, width: '100%', padding: '12px', background: GRAD, color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700 }}>
+              Буцах
+            </button>
           </div>
         )}
 
