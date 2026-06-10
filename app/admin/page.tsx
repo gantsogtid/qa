@@ -1,7 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
-import { supabase, getActiveEvent, getEvents, getSetting, parseCSV, type AttendanceRow, type EventTopic, type Question } from '@/lib/supabase'
+import { supabase, getActiveEvent, getEvents, getSetting, setSetting, parseCSV, type AttendanceRow, type EventTopic, type Question } from '@/lib/supabase'
 
 const P  = '#009194'
 const PD = '#007072'
@@ -31,6 +31,16 @@ export default function AdminPage() {
   const [saved, setSaved]           = useState<string | null>(null)
   const [csvImporting, setCsvImporting] = useState(false)
   const [csvResult, setCsvResult]   = useState<string | null>(null)
+
+  // Certificate settings
+  const [certUrl, setCertUrl]               = useState('')
+  const [certUrlInput, setCertUrlInput]     = useState('')
+  const [certNameX, setCertNameX]           = useState(50)
+  const [certNameY, setCertNameY]           = useState(50)
+  const [certFontSize, setCertFontSize]     = useState(64)
+  const [certFontSizeInput, setCertFontSizeInput] = useState('64')
+  const [certFontColor, setCertFontColor]   = useState('#1e293b')
+  const [certFontColorInput, setCertFontColorInput] = useState('#1e293b')
 
   const fetchList = useCallback(async () => {
     if (!selectedEventId) { setList([]); return }
@@ -65,17 +75,31 @@ export default function AdminPage() {
     if (!selectedEventId && chosen) setSelectedEventId(chosen.id)
     if (chosen) {
       applySelectedEvent(chosen)
-      return
+    } else {
+      const [img, title, date] = await Promise.all([
+        getSetting('program_image_url'),
+        getSetting('event_title'),
+        getSetting('event_date'),
+      ])
+      setImageUrl(img); setImageInput(img)
+      setEventTitle(title || 'Арга хэмжээ'); setTitleInput(title || 'Арга хэмжээ')
+      setEventDate(date); setDateInput(date)
     }
 
-    const [img, title, date] = await Promise.all([
-      getSetting('program_image_url'),
-      getSetting('event_title'),
-      getSetting('event_date'),
+    const [certUrlVal, certXVal, certYVal, certFsVal, certFcVal] = await Promise.all([
+      getSetting('cert_template_url'),
+      getSetting('cert_name_x'),
+      getSetting('cert_name_y'),
+      getSetting('cert_font_size'),
+      getSetting('cert_font_color'),
     ])
-    setImageUrl(img); setImageInput(img)
-    setEventTitle(title || 'Арга хэмжээ'); setTitleInput(title || 'Арга хэмжээ')
-    setEventDate(date); setDateInput(date)
+    setCertUrl(certUrlVal); setCertUrlInput(certUrlVal)
+    setCertNameX(parseFloat(certXVal) || 50)
+    setCertNameY(parseFloat(certYVal) || 50)
+    const fs = parseInt(certFsVal) || 64
+    setCertFontSize(fs); setCertFontSizeInput(certFsVal || '64')
+    const fc = certFcVal || '#1e293b'
+    setCertFontColor(fc); setCertFontColorInput(fc)
   }, [selectedEventId])
 
   useEffect(() => {
@@ -108,6 +132,24 @@ export default function AdminPage() {
     setSaving(null)
     setSaved(id)
     await fetchSettings()
+    setTimeout(() => setSaved(null), 2000)
+  }
+
+  async function saveCertSetting(key: string, value: string, id: string) {
+    setSaving(id)
+    const { error } = await setSetting(key, value)
+    if (error) {
+      console.error('saveCertSetting:', key, error)
+      setSaved(`err-${id}`)
+    } else {
+      if (key === 'cert_template_url') { setCertUrl(value) }
+      if (key === 'cert_name_x') { setCertNameX(parseFloat(value) || 50) }
+      if (key === 'cert_name_y') { setCertNameY(parseFloat(value) || 50) }
+      if (key === 'cert_font_size') { setCertFontSize(parseInt(value) || 64) }
+      if (key === 'cert_font_color') { setCertFontColor(value) }
+      setSaved(id)
+    }
+    setSaving(null)
     setTimeout(() => setSaved(null), 2000)
   }
 
@@ -381,6 +423,17 @@ export default function AdminPage() {
     </button>
   )
 
+  const SaveBtnGlobal = ({ id, onClick }: { id: string; onClick: () => void }) => (
+    <button onClick={onClick} disabled={saving === id}
+      style={{
+        padding: '0 18px', flexShrink: 0, borderRadius: 12, fontSize: 13, fontWeight: 600, height: 44,
+        background: saved === `err-${id}` ? '#dc2626' : saved === id ? '#16a34a' : GRAD,
+        color: '#fff',
+      }}>
+      {saved === `err-${id}` ? '⚠ Алдаа' : saved === id ? '✓' : saving === id ? '...' : 'Хадгалах'}
+    </button>
+  )
+
   if (!authed) {
     return (
       <div style={{ minHeight: '100vh', background: '#f0f4f4' }}>
@@ -529,6 +582,102 @@ export default function AdminPage() {
                   onKeyDown={e => { if (e.key === 'Enter') saveSetting('program_image_url', imageInput, 'image') }}
                   placeholder="https://..." style={{ flex: 1, fontSize: 13 }} />
                 <SaveBtn id="image" onClick={() => saveSetting('program_image_url', imageInput.trim(), 'image')} />
+              </div>
+            </div>
+
+            {/* Certificate settings */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>🎓 Гэрчилгээний тохиргоо</p>
+              <p style={{ fontSize: 11, color: '#94a3b8', marginBottom: 10 }}>
+                Оролцогчид <strong>/certificate</strong> хуудас руу ороод утасны дугаараа оруулж гэрчилгээгээ татна
+              </p>
+
+              {/* Template URL */}
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 5 }}>Загварын зураг URL</p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <input value={certUrlInput} onChange={e => setCertUrlInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveCertSetting('cert_template_url', certUrlInput.trim(), 'cert-url') }}
+                  placeholder="https://..." style={{ flex: 1, fontSize: 13 }} />
+                <SaveBtnGlobal id="cert-url" onClick={() => saveCertSetting('cert_template_url', certUrlInput.trim(), 'cert-url')} />
+              </div>
+
+              {/* Image preview with click-to-position */}
+              {certUrl && (
+                <div style={{ marginBottom: 12 }}>
+                  <p style={{ fontSize: 12, color: '#64748b', marginBottom: 5 }}>
+                    Нэр бичигдэх байрлалыг зурган дээр дарж тохируулна уу
+                  </p>
+                  <div style={{ position: 'relative', cursor: 'crosshair', borderRadius: 8, overflow: 'hidden', border: '1.5px solid #e2e8f0' }}
+                    onClick={async (e) => {
+                      const rect = e.currentTarget.getBoundingClientRect()
+                      const x = ((e.clientX - rect.left) / rect.width) * 100
+                      const y = ((e.clientY - rect.top) / rect.height) * 100
+                      setCertNameX(x); setCertNameY(y)
+                      setSaving('cert-pos')
+                      await Promise.all([
+                        setSetting('cert_name_x', x.toFixed(2)),
+                        setSetting('cert_name_y', y.toFixed(2)),
+                      ])
+                      setSaving(null); setSaved('cert-pos')
+                      setTimeout(() => setSaved(null), 1500)
+                    }}
+                  >
+                    <img
+                      src={`/api/image-proxy?url=${encodeURIComponent(certUrl)}`}
+                      alt="cert template"
+                      style={{ width: '100%', display: 'block' }}
+                    />
+                    {/* Position marker */}
+                    <div style={{
+                      position: 'absolute',
+                      left: `${certNameX}%`,
+                      top: `${certNameY}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: 16, height: 16,
+                      background: '#ef4444',
+                      borderRadius: '50%',
+                      border: '2.5px solid #fff',
+                      boxShadow: '0 2px 8px rgba(0,0,0,.5)',
+                      pointerEvents: 'none',
+                    }} />
+                    {/* Sample name preview */}
+                    <div style={{
+                      position: 'absolute',
+                      left: `${certNameX}%`,
+                      top: `${certNameY}%`,
+                      transform: 'translate(-50%, calc(-50% - 14px))',
+                      fontSize: 10, fontWeight: 700, color: certFontColor,
+                      textShadow: '0 1px 3px rgba(0,0,0,.4)',
+                      pointerEvents: 'none',
+                      whiteSpace: 'nowrap',
+                    }}>Овог Нэр</div>
+                  </div>
+                  <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 5 }}>
+                    Байрлал: X={certNameX.toFixed(1)}%, Y={certNameY.toFixed(1)}%
+                    {saving === 'cert-pos' && ' · Хадгалж байна...'}
+                    {saved === 'cert-pos' && ' · ✓ Хадгалагдлаа'}
+                  </p>
+                </div>
+              )}
+
+              {/* Font size */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#64748b', flexShrink: 0, width: 100 }}>Фонтын хэмжээ</p>
+                <input value={certFontSizeInput} onChange={e => setCertFontSizeInput(e.target.value)}
+                  type="number" min="10" max="300" style={{ flex: 1 }} />
+                <SaveBtnGlobal id="cert-font-size" onClick={() => saveCertSetting('cert_font_size', certFontSizeInput, 'cert-font-size')} />
+              </div>
+
+              {/* Font color */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#64748b', flexShrink: 0, width: 100 }}>Фонтын өнгө</p>
+                <div style={{ display: 'flex', gap: 6, flex: 1, alignItems: 'center' }}>
+                  <input type="color" value={certFontColorInput} onChange={e => setCertFontColorInput(e.target.value)}
+                    style={{ width: 40, height: 38, padding: 2, borderRadius: 6, cursor: 'pointer', border: '1px solid #e2e8f0', flexShrink: 0 }} />
+                  <input value={certFontColorInput} onChange={e => setCertFontColorInput(e.target.value)}
+                    placeholder="#1e293b" style={{ flex: 1 }} />
+                </div>
+                <SaveBtnGlobal id="cert-font-color" onClick={() => saveCertSetting('cert_font_color', certFontColorInput, 'cert-font-color')} />
               </div>
             </div>
           </div>

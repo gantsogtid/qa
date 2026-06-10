@@ -28,7 +28,7 @@ export default function RegisterPage() {
     getActiveEvent().then(setActiveEvent)
   }, [])
 
-  const canSubmit = form.last_name.trim() && form.first_name.trim()
+  const canSubmit = !!activeEvent && !!form.last_name.trim() && !!form.first_name.trim()
 
   async function submit() {
     if (!canSubmit) return

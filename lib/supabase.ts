@@ -55,6 +55,19 @@ export async function getActiveEvent(): Promise<EventTopic | null> {
   return data
 }
 
+export async function getLatestEvent(): Promise<EventTopic | null> {
+  const active = await getActiveEvent()
+  if (active) return active
+  const { data } = await supabase
+    .from('events')
+    .select('*')
+    .eq('is_active', false)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data || null
+}
+
 export async function getEvents(): Promise<EventTopic[]> {
   const { data, error } = await supabase
     .from('events')

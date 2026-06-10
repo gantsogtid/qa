@@ -7,7 +7,7 @@ import { supabase, getActiveEvent, type AttendanceRow, type EventTopic } from '@
 const P    = '#009194'
 const GRAD = `linear-gradient(135deg, #009194, #007072)`
 
-type Step = 'search' | 'result' | 'register' | 'done'
+type Step = 'search' | 'result' | 'done'
 
 function displayName(p: AttendanceRow) {
   const parts = [p.last_name, p.first_name].filter(Boolean)
@@ -22,6 +22,7 @@ export default function CheckinPage() {
   const [notFound, setNotFound] = useState(false)
   const [origin, setOrigin]   = useState('')
   const [activeEvent, setActiveEvent] = useState<EventTopic | null>(null)
+  const [eventLoading, setEventLoading] = useState(true)
 
   // Modal — confirm / edit before checkin
   const [modal, setModal]     = useState<AttendanceRow | null>(null)
@@ -29,26 +30,19 @@ export default function CheckinPage() {
   const [saving, setSaving]   = useState(false)
   const [done, setDone]       = useState<AttendanceRow | null>(null)
 
-  // Self-register form (kept for mobile access)
-  const [regForm, setRegForm] = useState({ last_name: '', first_name: '', phone: '', hospital: '', position_title: '', email: '' })
-  const [registering, setRegistering] = useState(false)
-
   useEffect(() => {
     setOrigin(window.location.origin)
-    getActiveEvent().then(setActiveEvent)
+    getActiveEvent().then(event => {
+      setActiveEvent(event)
+      setEventLoading(false)
+    })
   }, [])
 
   /* ── Search ── */
   const search = useCallback(async () => {
-    if (!query.trim()) return
+    if (!query.trim() || !activeEvent) return
     setLoading(true)
     setNotFound(false)
-
-    if (!activeEvent) {
-      setLoading(false)
-      setNotFound(true)
-      return
-    }
 
     const { data: all, error } = await supabase.from('attendance').select('*').eq('event_id', activeEvent.id)
     setLoading(false)
@@ -103,22 +97,9 @@ export default function CheckinPage() {
     setStep('done')
   }
 
-  /* ── Self-register ── */
-  async function register() {
-    if (!regForm.first_name.trim() && !regForm.last_name.trim()) return
-    if (!activeEvent) return
-    setRegistering(true)
-    const name = [regForm.first_name.trim(), regForm.last_name.trim()].filter(Boolean).join(' ')
-    const { data } = await supabase.from('attendance').insert({ ...regForm, name, checked_in: true, event_id: activeEvent.id }).select().single()
-    setDone(data)
-    setRegistering(false)
-    setStep('done')
-  }
-
   function reset() {
     setQuery(''); setResults([]); setStep('search')
     setNotFound(false); setDone(null)
-    setRegForm({ last_name: '', first_name: '', phone: '', hospital: '', position_title: '', email: '' })
   }
 
   /* ══════════════ RENDER ══════════════ */
@@ -146,9 +127,9 @@ export default function CheckinPage() {
                 style={{ marginBottom: 10, fontSize: 16 }}
                 autoFocus
               />
-              <button onClick={search} disabled={loading || !query.trim()}
-                style={{ width: '100%', padding: '13px', background: query.trim() ? GRAD : '#e2e8f0', color: query.trim() ? '#fff' : '#94a3b8', borderRadius: 12, fontSize: 15, fontWeight: 700 }}>
-                {loading ? 'Хайж байна...' : 'Хайх'}
+              <button onClick={search} disabled={loading || eventLoading || !query.trim()}
+                style={{ width: '100%', padding: '13px', background: query.trim() && !eventLoading ? GRAD : '#e2e8f0', color: query.trim() && !eventLoading ? '#fff' : '#94a3b8', borderRadius: 12, fontSize: 15, fontWeight: 700 }}>
+                {loading ? 'Хайж байна...' : eventLoading ? 'Ачааллаж байна...' : 'Хайх'}
               </button>
             </div>
 
@@ -229,36 +210,6 @@ export default function CheckinPage() {
               </div>
             )}
           </>
-        )}
-
-        {/* ── Register ── */}
-        {step === 'register' && (
-          <div style={{ background: '#fff', borderRadius: 20, padding: '1.5rem', boxShadow: '0 8px 32px rgba(0,0,0,.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <button onClick={reset} style={{ background: '#f1f5f9', borderRadius: 8, padding: '4px 12px', color: '#64748b', fontSize: 13 }}>← Буцах</button>
-              <p style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>Шинэ бүртгэл</p>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[
-                { key: 'last_name',      label: 'Овог',                  req: true  },
-                { key: 'first_name',     label: 'Нэр',                   req: true  },
-                { key: 'phone',          label: 'Утасны дугаар',         req: false },
-                { key: 'hospital',       label: 'Эмнэлэг / Байгууллага', req: false },
-                { key: 'position_title', label: 'Албан тушаал',          req: false },
-              ].map(f => (
-                <div key={f.key}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>
-                    {f.label}{f.req && <span style={{ color: '#dc2626' }}> *</span>}
-                  </p>
-                  <input value={(regForm as any)[f.key]} onChange={e => setRegForm(prev => ({ ...prev, [f.key]: e.target.value }))} placeholder={f.label} style={{ fontSize: 14 }} />
-                </div>
-              ))}
-              <button onClick={register} disabled={registering || (!regForm.first_name.trim() && !regForm.last_name.trim())}
-                style={{ marginTop: 4, padding: '13px', background: (regForm.first_name || regForm.last_name) ? GRAD : '#e2e8f0', color: (regForm.first_name || regForm.last_name) ? '#fff' : '#94a3b8', borderRadius: 12, fontSize: 15, fontWeight: 700 }}>
-                {registering ? 'Бүртгэж байна...' : 'Бүртгүүлж ирлээ ✓'}
-              </button>
-            </div>
-          </div>
         )}
 
         {/* ── Done ── */}
