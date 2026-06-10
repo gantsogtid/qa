@@ -59,11 +59,21 @@ export default function AdminPage() {
       setImageUrl(''); setImageInput('')
       setEventTitle('Арга хэмжээ'); setTitleInput('Арга хэмжээ')
       setEventDate(''); setDateInput('')
+      setCertUrl(''); setCertUrlInput('')
+      setCertNameX(50); setCertNameY(50)
+      setCertFontSize(64); setCertFontSizeInput('64')
+      setCertFontColor('#1e293b'); setCertFontColorInput('#1e293b')
       return
     }
     setImageUrl(event.program_image_url || ''); setImageInput(event.program_image_url || '')
     setEventTitle(event.title || 'Арга хэмжээ'); setTitleInput(event.title || 'Арга хэмжээ')
     setEventDate(event.event_date || ''); setDateInput(event.event_date || '')
+    const cu = event.cert_template_url || ''
+    setCertUrl(cu); setCertUrlInput(cu)
+    const cx = event.cert_name_x ?? 50; setCertNameX(cx)
+    const cy = event.cert_name_y ?? 50; setCertNameY(cy)
+    const fs = event.cert_font_size ?? 64; setCertFontSize(fs); setCertFontSizeInput(String(fs))
+    const fc = event.cert_font_color || '#1e293b'; setCertFontColor(fc); setCertFontColorInput(fc)
   }
 
   const fetchSettings = useCallback(async () => {
@@ -86,20 +96,6 @@ export default function AdminPage() {
       setEventDate(date); setDateInput(date)
     }
 
-    const [certUrlVal, certXVal, certYVal, certFsVal, certFcVal] = await Promise.all([
-      getSetting('cert_template_url'),
-      getSetting('cert_name_x'),
-      getSetting('cert_name_y'),
-      getSetting('cert_font_size'),
-      getSetting('cert_font_color'),
-    ])
-    setCertUrl(certUrlVal); setCertUrlInput(certUrlVal)
-    setCertNameX(parseFloat(certXVal) || 50)
-    setCertNameY(parseFloat(certYVal) || 50)
-    const fs = parseInt(certFsVal) || 64
-    setCertFontSize(fs); setCertFontSizeInput(certFsVal || '64')
-    const fc = certFcVal || '#1e293b'
-    setCertFontColor(fc); setCertFontColorInput(fc)
   }, [selectedEventId])
 
   useEffect(() => {
@@ -135,10 +131,15 @@ export default function AdminPage() {
   }
 
   async function saveCertSetting(key: string, value: string, id: string) {
+    const targetEvent = events.find(e => e.id === selectedEventId) || activeEvent
+    if (!targetEvent) { setSaved(`err-${id}`); setTimeout(() => setSaved(null), 2000); return }
     setSaving(id)
-    const { error } = await setSetting(key, value)
+    const dbVal = (key === 'cert_name_x' || key === 'cert_name_y') ? parseFloat(value)
+      : key === 'cert_font_size' ? parseInt(value)
+      : value
+    const { error } = await supabase.from('events').update({ [key]: dbVal }).eq('id', targetEvent.id)
     if (error) {
-      console.error('saveCertSetting:', key, error)
+      console.error('saveCertSetting:', key, error.message)
       setSaved(`err-${id}`)
     } else {
       if (key === 'cert_template_url') { setCertUrl(value) }
@@ -146,6 +147,9 @@ export default function AdminPage() {
       if (key === 'cert_name_y') { setCertNameY(parseFloat(value) || 50) }
       if (key === 'cert_font_size') { setCertFontSize(parseInt(value) || 64) }
       if (key === 'cert_font_color') { setCertFontColor(value) }
+      const updated = { ...targetEvent, [key]: dbVal } as EventTopic
+      if (targetEvent.is_active) setActiveEvent(updated)
+      setEvents(prev => prev.map(e => e.id === updated.id ? updated : e))
       setSaved(id)
     }
     setSaving(null)
@@ -612,11 +616,17 @@ export default function AdminPage() {
                       const x = ((e.clientX - rect.left) / rect.width) * 100
                       const y = ((e.clientY - rect.top) / rect.height) * 100
                       setCertNameX(x); setCertNameY(y)
+                      const targetEvent = events.find(ev => ev.id === selectedEventId) || activeEvent
+                      if (!targetEvent) return
                       setSaving('cert-pos')
-                      await Promise.all([
-                        setSetting('cert_name_x', x.toFixed(2)),
-                        setSetting('cert_name_y', y.toFixed(2)),
-                      ])
+                      const { error } = await supabase.from('events')
+                        .update({ cert_name_x: x, cert_name_y: y })
+                        .eq('id', targetEvent.id)
+                      if (!error) {
+                        const updated = { ...targetEvent, cert_name_x: x, cert_name_y: y } as EventTopic
+                        if (targetEvent.is_active) setActiveEvent(updated)
+                        setEvents(prev => prev.map(ev => ev.id === updated.id ? updated : ev))
+                      }
                       setSaving(null); setSaved('cert-pos')
                       setTimeout(() => setSaved(null), 1500)
                     }}

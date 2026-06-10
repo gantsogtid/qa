@@ -36,6 +36,11 @@ export type EventTopic = {
   is_active: boolean
   created_at: string
   archived_at: string | null
+  cert_template_url: string
+  cert_name_x: number
+  cert_name_y: number
+  cert_font_size: number
+  cert_font_color: string
 }
 
 export async function getActiveEvent(): Promise<EventTopic | null> {
