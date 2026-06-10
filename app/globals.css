@@ -47,14 +47,14 @@ textarea { resize: vertical; min-height: 96px; line-height: 1.5; }
   border-radius: 22px;
   display: flex;
   align-items: stretch;
+  justify-content: center;
   z-index: 200;
   box-shadow: 0 6px 28px rgba(0,145,148,.45);
   padding: 0 6px;
   width: fit-content;
-  min-width: 240px;
 }
 .bottom-nav a {
-  min-width: 80px;
+  min-width: 76px;
   display: flex;
   flex-direction: column;
   align-items: center;
