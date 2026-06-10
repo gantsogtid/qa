@@ -108,8 +108,7 @@ export default function AdminPage() {
 
   async function saveSetting(key: string, value: string, id: string) {
     const targetEvent = events.find(e => e.id === selectedEventId) || activeEvent
-    if (!targetEvent || !targetEvent.is_active || viewingArchived) {
-      console.error('setSetting:', key, 'Active event not found')
+    if (!targetEvent) {
       setSaved(`err-${id}`)
       setTimeout(() => setSaved(null), 3000)
       return
@@ -127,7 +126,7 @@ export default function AdminPage() {
     if (key === 'event_title') { setEventTitle(value) }
     if (key === 'event_date') { setEventDate(value) }
     const updatedEvent = { ...targetEvent, [column]: value }
-    setActiveEvent(updatedEvent)
+    if (targetEvent.is_active) setActiveEvent(updatedEvent)
     setEvents(prev => prev.map(e => e.id === updatedEvent.id ? updatedEvent : e))
     setSaving(null)
     setSaved(id)
@@ -413,11 +412,11 @@ export default function AdminPage() {
   const ADMIN_PW = process.env.NEXT_PUBLIC_ADMIN_PW || '@ssw0rd2o24'
 
   const SaveBtn = ({ id, onClick }: { id: string; onClick: () => void }) => (
-    <button onClick={onClick} disabled={saving === id || viewingArchived}
+    <button onClick={onClick} disabled={saving === id}
       style={{
         padding: '0 18px', flexShrink: 0, borderRadius: 12, fontSize: 13, fontWeight: 600, height: 44,
-        background: viewingArchived ? '#e2e8f0' : saved === `err-${id}` ? '#dc2626' : saved === id ? '#16a34a' : GRAD,
-        color: viewingArchived ? '#94a3b8' : '#fff',
+        background: saved === `err-${id}` ? '#dc2626' : saved === id ? '#16a34a' : GRAD,
+        color: '#fff',
       }}>
       {saved === `err-${id}` ? '⚠ Алдаа' : saved === id ? '✓' : saving === id ? '...' : 'Хадгалах'}
     </button>

@@ -88,7 +88,7 @@ export async function getSetting(key: string): Promise<string> {
 }
 
 export async function setSetting(key: string, value: string): Promise<{ error: string | null }> {
-  const { error } = await supabase.from('settings').upsert({ key, value })
+  const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
   return { error: error?.message ?? null }
 }
 
