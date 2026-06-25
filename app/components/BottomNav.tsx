@@ -16,17 +16,19 @@ export default function BottomNav() {
   const path = usePathname()
   const [hasActive, setHasActive] = useState<boolean | null>(null)
   const [hasQuiz, setHasQuiz]     = useState(false)
+  const [hasCert, setHasCert]     = useState(false)
 
   useEffect(() => {
     getActiveEvent().then(e => {
       setHasActive(!!e)
       setHasQuiz(!!(e?.has_quiz))
+      setHasCert(!!(e?.cert_template_url?.trim()))
     })
   }, [])
 
   const items = hasActive === false
     ? CERT_ONLY
-    : [...BASE_ITEMS, ...(hasQuiz ? [QUIZ_ITEM] : []), CERT_ITEM]
+    : [...BASE_ITEMS, ...(hasQuiz ? [QUIZ_ITEM] : []), ...(hasCert ? [CERT_ITEM] : [])]
 
   return (
     <nav className="bottom-nav">
