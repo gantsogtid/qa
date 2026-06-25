@@ -43,6 +43,7 @@ export type EventTopic = {
   cert_font_size: number
   cert_font_color: string
   has_quiz: boolean
+  has_questions: boolean
 }
 
 export type QuizQuestion = {

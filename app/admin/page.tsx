@@ -32,7 +32,8 @@ export default function AdminPage() {
   const [csvImporting, setCsvImporting] = useState(false)
   const [csvResult, setCsvResult]   = useState<string | null>(null)
 
-  // Quiz state
+  // Feature toggles
+  const [hasQuestions, setHasQuestions]     = useState(true)
   const [hasQuiz, setHasQuiz]               = useState(false)
   const [quizBank, setQuizBank]             = useState<QuizQuestion[]>([])
   const [eventQuizQs, setEventQuizQs]       = useState<{ id: string; question_id: string }[]>([])
@@ -69,6 +70,7 @@ export default function AdminPage() {
       setImageUrl(''); setImageInput('')
       setEventTitle('Арга хэмжээ'); setTitleInput('Арга хэмжээ')
       setEventDate(''); setDateInput('')
+      setHasQuestions(true)
       setHasQuiz(false)
       setCertUrl(''); setCertUrlInput('')
       setCertNameX(50); setCertNameY(50)
@@ -79,6 +81,7 @@ export default function AdminPage() {
     setImageUrl(event.program_image_url || ''); setImageInput(event.program_image_url || '')
     setEventTitle(event.title || 'Арга хэмжээ'); setTitleInput(event.title || 'Арга хэмжээ')
     setEventDate(event.event_date || ''); setDateInput(event.event_date || '')
+    setHasQuestions(event.has_questions ?? true)
     setHasQuiz(event.has_quiz ?? false)
     const cu = event.cert_template_url || ''
     setCertUrl(cu); setCertUrlInput(cu)
@@ -670,6 +673,34 @@ export default function AdminPage() {
                   Архив: {events.filter(e => !e.is_active).length} сэдэв хадгалагдсан
                 </p>
               )}
+            </div>
+
+            {/* Feature toggles */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 12 }}>⚡ Функцүүд</p>
+              {[
+                { key: 'has_questions', label: 'Асуулт хэсэг', desc: 'Оролцогчид асуулт илгээх боломж', value: hasQuestions, set: setHasQuestions },
+                { key: 'has_quiz',      label: 'Шалгалт хэсэг', desc: 'Онлайн шалгалт авах боломж',     value: hasQuiz,      set: setHasQuiz      },
+              ].map(({ key, label, desc, value, set }) => (
+                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: key === 'has_questions' ? '1px solid #f1f5f9' : 'none', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={value} onChange={async e => {
+                    const next = e.target.checked
+                    set(next)
+                    const targetEvent = events.find(ev => ev.id === selectedEventId) || activeEvent
+                    if (!targetEvent) return
+                    const { error } = await supabase.from('events').update({ [key]: next }).eq('id', targetEvent.id)
+                    if (!error) {
+                      const updated = { ...targetEvent, [key]: next } as EventTopic
+                      if (targetEvent.is_active) setActiveEvent(updated)
+                      setEvents(prev => prev.map(ev => ev.id === updated.id ? updated : ev))
+                    } else set(!next)
+                  }} style={{ width: 18, height: 18, accentColor: P, flexShrink: 0, cursor: 'pointer' }} />
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{label}</p>
+                    <p style={{ fontSize: 11, color: '#94a3b8' }}>{desc}</p>
+                  </div>
+                </label>
+              ))}
             </div>
 
             {/* Event title */}
