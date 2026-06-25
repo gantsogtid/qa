@@ -206,12 +206,16 @@ export default function AdminPage() {
   }
 
   async function addQuestionToBank() {
-    if (!newQText.trim() || newQOptions.some(o => !o.trim())) return
+    const opts = newQOptions.map(o => o.trim())
+    // Сүүлийн хоосон хариултуудыг хасах (мин 2 байх ёстой)
+    while (opts.length > 2 && !opts[opts.length - 1]) opts.pop()
+    if (!newQText.trim() || opts.length < 2 || !opts[0] || !opts[1]) return
+    const correctIdx = Math.min(newQCorrect, opts.length - 1)
     setAddingQ(true)
     const { data, error } = await supabase.from('quiz_questions').insert({
       question: newQText.trim(),
-      options: newQOptions.map(o => o.trim()),
-      correct_index: newQCorrect,
+      options: opts,
+      correct_index: correctIdx,
     }).select('*').single()
     if (!error && data) {
       setQuizBank(prev => [...prev, data as QuizQuestion])
@@ -1008,24 +1012,34 @@ export default function AdminPage() {
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 8 }}>Шинэ асуулт нэмэх</p>
                 <textarea value={newQText} onChange={e => setNewQText(e.target.value)}
                   placeholder="Асуултын текст..." style={{ marginBottom: 10, minHeight: 72, fontSize: 13 }} />
-                {newQOptions.map((opt, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
-                    <input type="radio" name="correct" checked={newQCorrect === i} onChange={() => setNewQCorrect(i)}
-                      style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }} />
-                    <input value={opt} onChange={e => { const o = [...newQOptions]; o[i] = e.target.value; setNewQOptions(o) }}
-                      placeholder={`${String.fromCharCode(65 + i)} хариулт`} style={{ flex: 1, fontSize: 13 }} />
-                  </div>
-                ))}
-                <p style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>● тэмдэглэсэн нь зөв хариулт</p>
-                <button onClick={addQuestionToBank}
-                  disabled={addingQ || !newQText.trim() || newQOptions.some(o => !o.trim())}
-                  style={{
-                    padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-                    background: !newQText.trim() || newQOptions.some(o => !o.trim()) ? '#e2e8f0' : GRAD,
-                    color: !newQText.trim() || newQOptions.some(o => !o.trim()) ? '#94a3b8' : '#fff',
-                  }}>
-                  {addingQ ? 'Нэмж байна...' : '+ Асуулт нэмэх'}
-                </button>
+                {newQOptions.map((opt, i) => {
+                  const required = i < 2
+                  return (
+                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                      <input type="radio" name="correct" checked={newQCorrect === i} onChange={() => setNewQCorrect(i)}
+                        style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }} />
+                      <input value={opt} onChange={e => { const o = [...newQOptions]; o[i] = e.target.value; setNewQOptions(o) }}
+                        placeholder={`${String.fromCharCode(65 + i)} хариулт${required ? ' *' : ' (заавал биш)'}`}
+                        style={{ flex: 1, fontSize: 13, borderColor: required && !opt.trim() ? '#fca5a5' : undefined }} />
+                    </div>
+                  )
+                })}
+                <p style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>● тэмдэглэсэн нь зөв хариулт · A, B заавал · C, D заавал биш</p>
+                {(() => {
+                  const opts = newQOptions.map(o => o.trim())
+                  while (opts.length > 2 && !opts[opts.length - 1]) opts.pop()
+                  const canAdd = !!newQText.trim() && opts.length >= 2 && !!opts[0] && !!opts[1]
+                  return (
+                    <button onClick={addQuestionToBank} disabled={addingQ || !canAdd}
+                      style={{
+                        padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                        background: canAdd ? GRAD : '#e2e8f0',
+                        color: canAdd ? '#fff' : '#94a3b8',
+                      }}>
+                      {addingQ ? 'Нэмж байна...' : '+ Асуулт нэмэх'}
+                    </button>
+                  )
+                })()}
               </div>
 
               {/* Банкны жагсаалт */}
