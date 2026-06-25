@@ -3,27 +3,30 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { getActiveEvent } from '@/lib/supabase'
 
-const ALL_ITEMS = [
+const BASE_ITEMS = [
   { href: '/display',     icon: '🏠', label: 'Нүүр',         desktopOnly: true  },
   { href: '/checkin',     icon: '✅', label: 'Ирц',           desktopOnly: false },
   { href: '/questions',   icon: '💬', label: 'Асуулт',        desktopOnly: false },
-  { href: '/certificate', icon: '🎓', label: 'Гэрчилгээ',     desktopOnly: false },
 ]
-
-const CERT_ONLY = [
-  { href: '/certificate', icon: '🎓', label: 'Гэрчилгээ авах', desktopOnly: false },
-]
+const QUIZ_ITEM   = { href: '/quiz',        icon: '📝', label: 'Шалгалт',     desktopOnly: false }
+const CERT_ITEM   = { href: '/certificate', icon: '🎓', label: 'Гэрчилгээ',   desktopOnly: false }
+const CERT_ONLY   = [{ href: '/certificate', icon: '🎓', label: 'Гэрчилгээ авах', desktopOnly: false }]
 
 export default function BottomNav() {
   const path = usePathname()
   const [hasActive, setHasActive] = useState<boolean | null>(null)
+  const [hasQuiz, setHasQuiz]     = useState(false)
 
   useEffect(() => {
-    getActiveEvent().then(e => setHasActive(!!e))
+    getActiveEvent().then(e => {
+      setHasActive(!!e)
+      setHasQuiz(!!(e?.has_quiz))
+    })
   }, [])
 
-  // null = loading: show all to avoid flicker; false = no active event: cert only
-  const items = hasActive === false ? CERT_ONLY : ALL_ITEMS
+  const items = hasActive === false
+    ? CERT_ONLY
+    : [...BASE_ITEMS, ...(hasQuiz ? [QUIZ_ITEM] : []), CERT_ITEM]
 
   return (
     <nav className="bottom-nav">

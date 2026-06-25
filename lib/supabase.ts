@@ -23,6 +23,7 @@ export type AttendanceRow = {
   position_title: string
   email: string
   phone: string
+  phone_digits?: string
   registered: boolean
   checked_in: boolean
   created_at: string
@@ -41,6 +42,36 @@ export type EventTopic = {
   cert_name_y: number
   cert_font_size: number
   cert_font_color: string
+  has_quiz: boolean
+}
+
+export type QuizQuestion = {
+  id: string
+  question: string
+  options: string[]
+  correct_index: number
+  created_at: string
+}
+
+export type QuizResult = {
+  id: string
+  event_id: string
+  phone: string
+  name: string | null
+  score: number
+  total: number
+  passed: boolean
+  attempt_num: number
+  created_at: string
+}
+
+export type CertificateIssue = {
+  id: string
+  attendance_id: string | null
+  event_id: string | null
+  participant_name: string
+  phone: string
+  issued_at: string
 }
 
 export async function getActiveEvent(): Promise<EventTopic | null> {
@@ -95,6 +126,10 @@ export async function getSetting(key: string): Promise<string> {
 export async function setSetting(key: string, value: string): Promise<{ error: string | null }> {
   const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
   return { error: error?.message ?? null }
+}
+
+export function normalizePhoneDigits(value: string): string {
+  return String(value || '').replace(/\D/g, '')
 }
 
 export function parseCSV(text: string): string[][] {

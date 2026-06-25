@@ -1,13 +1,13 @@
 'use client'
 export const dynamic = 'force-dynamic'
 import { useEffect, useState, useCallback } from 'react'
-import { supabase, getActiveEvent, getEvents, getSetting, setSetting, parseCSV, type AttendanceRow, type EventTopic, type Question } from '@/lib/supabase'
+import { normalizePhoneDigits, supabase, getActiveEvent, getEvents, getSetting, parseCSV, type AttendanceRow, type EventTopic, type Question, type QuizQuestion, type QuizResult } from '@/lib/supabase'
 
 const P  = '#009194'
 const PD = '#007072'
 const GRAD = `linear-gradient(135deg, ${P}, ${PD})`
 
-type Tab = 'settings' | 'attendance' | 'questions'
+type Tab = 'settings' | 'attendance' | 'questions' | 'quiz'
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>('settings')
@@ -31,6 +31,16 @@ export default function AdminPage() {
   const [saved, setSaved]           = useState<string | null>(null)
   const [csvImporting, setCsvImporting] = useState(false)
   const [csvResult, setCsvResult]   = useState<string | null>(null)
+
+  // Quiz state
+  const [hasQuiz, setHasQuiz]               = useState(false)
+  const [quizBank, setQuizBank]             = useState<QuizQuestion[]>([])
+  const [eventQuizQs, setEventQuizQs]       = useState<{ id: string; question_id: string }[]>([])
+  const [quizResults, setQuizResults]       = useState<QuizResult[]>([])
+  const [newQText, setNewQText]             = useState('')
+  const [newQOptions, setNewQOptions]       = useState(['', '', '', ''])
+  const [newQCorrect, setNewQCorrect]       = useState(0)
+  const [addingQ, setAddingQ]               = useState(false)
 
   // Certificate settings
   const [certUrl, setCertUrl]               = useState('')
@@ -59,6 +69,7 @@ export default function AdminPage() {
       setImageUrl(''); setImageInput('')
       setEventTitle('Арга хэмжээ'); setTitleInput('Арга хэмжээ')
       setEventDate(''); setDateInput('')
+      setHasQuiz(false)
       setCertUrl(''); setCertUrlInput('')
       setCertNameX(50); setCertNameY(50)
       setCertFontSize(64); setCertFontSizeInput('64')
@@ -68,6 +79,7 @@ export default function AdminPage() {
     setImageUrl(event.program_image_url || ''); setImageInput(event.program_image_url || '')
     setEventTitle(event.title || 'Арга хэмжээ'); setTitleInput(event.title || 'Арга хэмжээ')
     setEventDate(event.event_date || ''); setDateInput(event.event_date || '')
+    setHasQuiz(event.has_quiz ?? false)
     const cu = event.cert_template_url || ''
     setCertUrl(cu); setCertUrlInput(cu)
     const cx = event.cert_name_x ?? 50; setCertNameX(cx)
@@ -98,9 +110,33 @@ export default function AdminPage() {
 
   }, [selectedEventId])
 
+  const fetchQuizData = useCallback(async () => {
+    const [bankRes, eqqRes] = await Promise.all([
+      supabase.from('quiz_questions').select('*').order('created_at', { ascending: true }),
+      selectedEventId
+        ? supabase.from('event_quiz_questions').select('id, question_id').eq('event_id', selectedEventId)
+        : Promise.resolve({ data: [] }),
+    ])
+    setQuizBank((bankRes.data as QuizQuestion[]) || [])
+    setEventQuizQs((eqqRes.data as { id: string; question_id: string }[]) || [])
+
+    if (selectedEventId) {
+      const { data: rr } = await supabase
+        .from('quiz_results').select('*')
+        .eq('event_id', selectedEventId).order('created_at', { ascending: false })
+      setQuizResults((rr as QuizResult[]) || [])
+    } else {
+      setQuizResults([])
+    }
+  }, [selectedEventId])
+
   useEffect(() => {
     if (authed) { fetchList(); fetchQuestions(); fetchSettings() }
   }, [authed, fetchList, fetchQuestions, fetchSettings])
+
+  useEffect(() => {
+    if (authed && tab === 'quiz') fetchQuizData()
+  }, [authed, tab, fetchQuizData])
 
   async function saveSetting(key: string, value: string, id: string) {
     const targetEvent = events.find(e => e.id === selectedEventId) || activeEvent
@@ -154,6 +190,56 @@ export default function AdminPage() {
     }
     setSaving(null)
     setTimeout(() => setSaved(null), 2000)
+  }
+
+  async function toggleHasQuiz() {
+    const targetEvent = events.find(e => e.id === selectedEventId) || activeEvent
+    if (!targetEvent) return
+    const next = !hasQuiz
+    const { error } = await supabase.from('events').update({ has_quiz: next }).eq('id', targetEvent.id)
+    if (!error) {
+      setHasQuiz(next)
+      const updated = { ...targetEvent, has_quiz: next } as EventTopic
+      if (targetEvent.is_active) setActiveEvent(updated)
+      setEvents(prev => prev.map(e => e.id === updated.id ? updated : e))
+    }
+  }
+
+  async function addQuestionToBank() {
+    if (!newQText.trim() || newQOptions.some(o => !o.trim())) return
+    setAddingQ(true)
+    const { data, error } = await supabase.from('quiz_questions').insert({
+      question: newQText.trim(),
+      options: newQOptions.map(o => o.trim()),
+      correct_index: newQCorrect,
+    }).select('*').single()
+    if (!error && data) {
+      setQuizBank(prev => [...prev, data as QuizQuestion])
+      setNewQText(''); setNewQOptions(['', '', '', '']); setNewQCorrect(0)
+    }
+    setAddingQ(false)
+  }
+
+  async function deleteFromBank(id: string) {
+    if (!confirm('Асуулт устгах уу? Энэ сэдвийн шалгалтаас мөн хасагдана.')) return
+    await supabase.from('event_quiz_questions').delete().eq('question_id', id)
+    await supabase.from('quiz_questions').delete().eq('id', id)
+    setQuizBank(prev => prev.filter(q => q.id !== id))
+    setEventQuizQs(prev => prev.filter(e => e.question_id !== id))
+  }
+
+  async function addToEventQuiz(questionId: string) {
+    if (!selectedEventId) return
+    const order_num = eventQuizQs.length
+    const { data, error } = await supabase.from('event_quiz_questions')
+      .insert({ event_id: selectedEventId, question_id: questionId, order_num })
+      .select('id, question_id').single()
+    if (!error && data) setEventQuizQs(prev => [...prev, data as { id: string; question_id: string }])
+  }
+
+  async function removeFromEventQuiz(eqqId: string) {
+    await supabase.from('event_quiz_questions').delete().eq('id', eqqId)
+    setEventQuizQs(prev => prev.filter(e => e.id !== eqqId))
   }
 
   async function createNewEvent() {
@@ -250,6 +336,7 @@ export default function AdminPage() {
   }
 
   async function toggleCheckin(id: string, current: boolean) {
+    if (viewingArchived) return
     await supabase.from('attendance').update({ checked_in: !current }).eq('id', id)
     await fetchList()
   }
@@ -282,7 +369,8 @@ export default function AdminPage() {
   async function importCSV(file: File) {
     setCsvImporting(true)
     setCsvResult(null)
-    if (!activeEvent) {
+    const targetEvent = events.find(e => e.id === selectedEventId) || activeEvent
+    if (!targetEvent || !targetEvent.is_active) {
       setCsvResult('error:Идэвхтэй сэдэв олдсонгүй')
       setCsvImporting(false)
       return
@@ -324,7 +412,7 @@ export default function AdminPage() {
       (cols[i >= 0 ? i : fallback] || '').trim()
 
     const dataRows = rows.slice(startIdx).filter(r => r.length >= 3)
-    const records = dataRows.map(cols => {
+    let records = dataRows.map(cols => {
       const first = col(ci.first_name,  3, cols)
       const last  = col(ci.last_name,   2, cols)
       return {
@@ -334,9 +422,10 @@ export default function AdminPage() {
         position_title: col(ci.position_title, 4, cols),
         email:          col(ci.email,          5, cols),
         phone:          col(ci.phone,          6, cols),
+        phone_digits:   normalizePhoneDigits(col(ci.phone, 6, cols)),
         name:           `${first} ${last}`.trim(),
         checked_in:     false,
-        event_id:        activeEvent.id,
+        event_id:        targetEvent.id,
       }
     }).filter(r => r.first_name || r.last_name)
 
@@ -346,15 +435,44 @@ export default function AdminPage() {
       return
     }
 
-    // Дебаг: эхний мөрийн утасны дугаарыг шалгах
-    console.log('Эхний мөр:', records[0])
-    console.log('Утасны багана индекс:', ci.phone)
+    const seenPhones = new Set<string>()
+    let duplicateRows = 0
+    records = records.filter(r => {
+      if (!r.phone_digits) return true
+      if (seenPhones.has(r.phone_digits)) {
+        duplicateRows += 1
+        return false
+      }
+      seenPhones.add(r.phone_digits)
+      return true
+    })
+
+    const phones = records.map(r => r.phone_digits).filter(Boolean)
+    if (phones.length > 0) {
+      const { data: existing } = await supabase
+        .from('attendance')
+        .select('phone_digits')
+        .eq('event_id', targetEvent.id)
+        .in('phone_digits', phones)
+      const existingPhones = new Set((existing || []).map(r => r.phone_digits).filter(Boolean))
+      records = records.filter(r => {
+        if (!r.phone_digits || !existingPhones.has(r.phone_digits)) return true
+        duplicateRows += 1
+        return false
+      })
+    }
+
+    if (records.length === 0) {
+      setCsvResult(`error:Оруулах шинэ мөр олдсонгүй. ${duplicateRows} давхардсан мөр алгаслаа.`)
+      setCsvImporting(false)
+      return
+    }
 
     const { error } = await supabase.from('attendance').insert(records)
     if (error) {
       setCsvResult(`error:${error.message}`)
     } else {
-      setCsvResult(`ok:${records.length} хүний мэдээлэл амжилттай оруулсан`)
+      setCsvResult(`ok:${records.length} хүний мэдээлэл амжилттай оруулсан${duplicateRows ? `. ${duplicateRows} давхардсан мөр алгассан` : ''}`)
       await fetchList()
     }
     setCsvImporting(false)
@@ -471,12 +589,13 @@ export default function AdminPage() {
       {/* Tabs */}
       <div style={{ display: 'flex', background: '#fff', borderBottom: '1px solid #e2e8f0', paddingTop: 0 }}>
         {([
-          ['settings', '⚙️ Тохиргоо'],
+          ['settings',   '⚙️ Тохиргоо'],
           ['attendance', `👥 Ирц (${list.length})`],
-          ['questions', `💬 Асуулт (${questions.length})`],
+          ['questions',  `💬 Асуулт (${questions.length})`],
+          ['quiz',       '📝 Шалгалт'],
         ] as [Tab, string][]).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} style={{
-            flex: 1, padding: '13px 8px', fontSize: 13, fontWeight: 600,
+            flex: 1, padding: '13px 4px', fontSize: 12, fontWeight: 600,
             background: 'none', borderRadius: 0,
             color: tab === t ? P : '#64748b',
             borderBottom: `2px solid ${tab === t ? P : 'transparent'}`,
@@ -755,9 +874,9 @@ export default function AdminPage() {
                 borderRadius: 10, cursor: csvImporting ? 'default' : 'pointer',
                 fontSize: 13, fontWeight: 600, color: P,
               }}>
-                {csvImporting ? '⏳ Оруулж байна...' : '📁 CSV файл сонгох'}
+                {viewingArchived ? 'Архивласан сургалтанд import хийхгүй' : csvImporting ? '⏳ Оруулж байна...' : '📁 CSV файл сонгох'}
                 <input type="file" accept=".csv" style={{ display: 'none' }}
-                  disabled={csvImporting}
+                  disabled={csvImporting || viewingArchived}
                   onChange={e => { const f = e.target.files?.[0]; if (f) importCSV(f); e.target.value = '' }}
                 />
               </label>
@@ -792,12 +911,13 @@ export default function AdminPage() {
                     {p.hospital && <p style={{ fontSize: 11, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.hospital}{p.position_title ? ` · ${p.position_title}` : ''}</p>}
                     {p.phone && <p style={{ fontSize: 11, color: '#94a3b8' }}>{p.phone}</p>}
                   </div>
-                  <button onClick={() => toggleCheckin(p.id, p.checked_in)} style={{
+                  <button onClick={() => toggleCheckin(p.id, p.checked_in)} disabled={viewingArchived} style={{
                     flexShrink: 0, padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                    background: p.checked_in ? '#dcfce7' : '#f1f5f9',
-                    color: p.checked_in ? '#16a34a' : '#64748b',
+                    background: viewingArchived ? '#e2e8f0' : p.checked_in ? '#dcfce7' : '#f1f5f9',
+                    color: viewingArchived ? '#94a3b8' : p.checked_in ? '#16a34a' : '#64748b',
                     border: `1px solid ${p.checked_in ? '#86efac' : '#e2e8f0'}`,
-                  }}>{p.checked_in ? '✓ Ирсэн' : 'Ирээгүй'}</button>
+                    cursor: viewingArchived ? 'default' : 'pointer',
+                  }}>{viewingArchived ? 'Архив' : p.checked_in ? '✓ Ирсэн' : 'Ирээгүй'}</button>
                   <button onClick={() => deletePerson(p.id)} style={{ flexShrink: 0, padding: '5px 8px', borderRadius: 8, fontSize: 12, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>✕</button>
                 </div>
               ))}
@@ -831,6 +951,165 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* ── Шалгалт ── */}
+        {tab === 'quiz' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* Toggle */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>Шалгалт идэвхтэй эсэх</p>
+                  <p style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                    {hasQuiz ? 'Шалгалт авна — /quiz хуудас идэвхтэй' : 'Шалгалт авахгүй'}
+                  </p>
+                </div>
+                <button onClick={toggleHasQuiz} style={{
+                  padding: '9px 20px', borderRadius: 10, fontSize: 14, fontWeight: 700,
+                  background: hasQuiz ? '#16a34a' : '#e2e8f0',
+                  color: hasQuiz ? '#fff' : '#64748b',
+                }}>
+                  {hasQuiz ? '✓ Идэвхтэй' : 'Идэвхгүй'}
+                </button>
+              </div>
+            </div>
+
+            {/* Энэ сэдвийн сонгосон асуултууд */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>
+                Энэ сэдвийн шалгалтын асуулт ({eventQuizQs.length} асуулт)
+              </p>
+              {eventQuizQs.length === 0 && (
+                <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '1rem 0' }}>
+                  Доорх банкаас асуулт нэмнэ үү
+                </p>
+              )}
+              {eventQuizQs.map((eqq, i) => {
+                const q = quizBank.find(x => x.id === eqq.question_id)
+                if (!q) return null
+                return (
+                  <div key={eqq.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '8px 0', borderBottom: i < eventQuizQs.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                    <span style={{ fontSize: 12, color: '#94a3b8', minWidth: 20, paddingTop: 2, flexShrink: 0 }}>{i + 1}</span>
+                    <p style={{ flex: 1, fontSize: 13, color: '#1e293b', lineHeight: 1.5 }}>{q.question}</p>
+                    <button onClick={() => removeFromEventQuiz(eqq.id)}
+                      style={{ flexShrink: 0, fontSize: 12, padding: '3px 8px', borderRadius: 6, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>✕</button>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Асуултын банк */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>📚 Асуултын банк</p>
+
+              {/* Шинэ асуулт нэмэх */}
+              <div style={{ background: '#f8fafc', borderRadius: 12, padding: '1rem', marginBottom: 14 }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 8 }}>Шинэ асуулт нэмэх</p>
+                <textarea value={newQText} onChange={e => setNewQText(e.target.value)}
+                  placeholder="Асуултын текст..." style={{ marginBottom: 10, minHeight: 72, fontSize: 13 }} />
+                {newQOptions.map((opt, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                    <input type="radio" name="correct" checked={newQCorrect === i} onChange={() => setNewQCorrect(i)}
+                      style={{ width: 16, height: 16, flexShrink: 0, cursor: 'pointer' }} />
+                    <input value={opt} onChange={e => { const o = [...newQOptions]; o[i] = e.target.value; setNewQOptions(o) }}
+                      placeholder={`${String.fromCharCode(65 + i)} хариулт`} style={{ flex: 1, fontSize: 13 }} />
+                  </div>
+                ))}
+                <p style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>● тэмдэглэсэн нь зөв хариулт</p>
+                <button onClick={addQuestionToBank}
+                  disabled={addingQ || !newQText.trim() || newQOptions.some(o => !o.trim())}
+                  style={{
+                    padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                    background: !newQText.trim() || newQOptions.some(o => !o.trim()) ? '#e2e8f0' : GRAD,
+                    color: !newQText.trim() || newQOptions.some(o => !o.trim()) ? '#94a3b8' : '#fff',
+                  }}>
+                  {addingQ ? 'Нэмж байна...' : '+ Асуулт нэмэх'}
+                </button>
+              </div>
+
+              {/* Банкны жагсаалт */}
+              {quizBank.length === 0 && (
+                <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '1rem 0' }}>Асуулт байхгүй байна</p>
+              )}
+              {quizBank.map((q, i) => {
+                const inEvent = eventQuizQs.some(e => e.question_id === q.id)
+                const eqq = eventQuizQs.find(e => e.question_id === q.id)
+                return (
+                  <div key={q.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 0', borderBottom: i < quizBank.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                    <span style={{ fontSize: 12, color: '#94a3b8', minWidth: 20, paddingTop: 2, flexShrink: 0 }}>{i + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, color: '#1e293b', marginBottom: 5, lineHeight: 1.4 }}>{q.question}</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {q.options.map((o, oi) => (
+                          <p key={oi} style={{ fontSize: 11, color: oi === q.correct_index ? '#16a34a' : '#94a3b8' }}>
+                            {oi === q.correct_index ? '✓' : '○'} {String.fromCharCode(65 + oi)}. {o}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
+                      <button
+                        onClick={() => inEvent && eqq ? removeFromEventQuiz(eqq.id) : addToEventQuiz(q.id)}
+                        style={{
+                          fontSize: 11, padding: '5px 10px', borderRadius: 6, fontWeight: 600,
+                          background: inEvent ? '#f0fdf4' : '#e6f6f6',
+                          color: inEvent ? '#16a34a' : P,
+                          border: `1px solid ${inEvent ? '#86efac' : '#a8d5d6'}`,
+                        }}>
+                        {inEvent ? '✓ Орсон' : '+ Нэмэх'}
+                      </button>
+                      <button onClick={() => deleteFromBank(q.id)}
+                        style={{ fontSize: 11, padding: '5px 10px', borderRadius: 6, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', fontWeight: 600 }}>
+                        Устгах
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Үр дүн */}
+            <div style={{ background: '#fff', borderRadius: 16, padding: '1.25rem', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>
+                📊 Шалгалтын үр дүн ({quizResults.length})
+              </p>
+              {quizResults.length === 0 && (
+                <p style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '1rem 0' }}>Үр дүн байхгүй байна</p>
+              )}
+              {quizResults.map((r, i) => (
+                <div key={r.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0',
+                  borderBottom: i < quizResults.length - 1 ? '1px solid #f1f5f9' : 'none',
+                }}>
+                  <div style={{
+                    width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                    background: r.passed ? '#f0fdf4' : '#fef2f2',
+                    border: `1.5px solid ${r.passed ? '#86efac' : '#fecaca'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, color: r.passed ? '#16a34a' : '#dc2626', fontWeight: 800,
+                  }}>
+                    {r.passed ? '✓' : '✕'}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.name || r.phone}
+                    </p>
+                    <p style={{ fontSize: 11, color: '#94a3b8' }}>{r.phone} · {r.attempt_num}-р оролдлого</p>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <p style={{ fontSize: 15, fontWeight: 800, color: r.passed ? '#16a34a' : '#dc2626' }}>
+                      {r.score}/{r.total}
+                    </p>
+                    <p style={{ fontSize: 10, color: '#94a3b8' }}>{Math.round((r.score / r.total) * 100)}%</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+          </div>
+        )}
+
       </div>
     </div>
   )
