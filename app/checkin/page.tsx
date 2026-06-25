@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic'
 import { useState, useCallback, useEffect } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { supabase, getActiveEvent, type AttendanceRow, type EventTopic } from '@/lib/supabase'
+import { normalizePhoneDigits, supabase, getActiveEvent, type AttendanceRow, type EventTopic } from '@/lib/supabase'
 
 const P    = '#009194'
 const GRAD = `linear-gradient(135deg, #009194, #007072)`
@@ -87,9 +87,16 @@ export default function CheckinPage() {
   /* ── Confirm check-in ── */
   async function confirmCheckin() {
     if (!modal) return
+    const currentEvent = await getActiveEvent()
+    if (!currentEvent || modal.event_id !== currentEvent.id) {
+      setActiveEvent(currentEvent)
+      setModal(null)
+      setNotFound(true)
+      return
+    }
     setSaving(true)
     const name = [editForm.first_name, editForm.last_name].filter(Boolean).join(' ') || modal.name
-    await supabase.from('attendance').update({ ...editForm, name, checked_in: true }).eq('id', modal.id)
+    await supabase.from('attendance').update({ ...editForm, name, phone_digits: normalizePhoneDigits(editForm.phone), checked_in: true }).eq('id', modal.id)
     const updated = { ...modal, ...editForm, name, checked_in: true } as AttendanceRow
     setDone(updated)
     setModal(null)
@@ -155,6 +162,14 @@ export default function CheckinPage() {
                         {origin}/register
                       </p>
                     </div>
+                    <a href="/register" style={{
+                      display: 'block', width: '100%', padding: '13px',
+                      background: GRAD, color: '#fff', borderRadius: 12,
+                      fontSize: 15, fontWeight: 700, textAlign: 'center',
+                      boxShadow: '0 4px 16px rgba(0,145,148,.35)',
+                    }}>
+                      Энд дарж бүртгүүлэх →
+                    </a>
                   </div>
                 )}
               </div>
